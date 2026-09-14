@@ -1,42 +1,41 @@
-# Annotation ligne par ligne — `Kernel/Foundation/NKMemory/NKMemory.jenga`
+# NKMemory.jenga, lu ligne par ligne
 
-> **Pourquoi ce fichier.** Le cours montre les `.jenga` de NKGui, NKCanvas, NKGuiIntegration, NKGuiDemo, NKImage, NKFont, NKAudio, NKMedia et NKNetwork. **Aucun chapitre ne montre NKMemory.jenga.** NKMemory est pourtant déjà connu :
-> - il a été construit en **3ᵉ position** par `jenga build --target NKMath` (14 `.cpp`, 2,55 s) ;
-> - le comptage lui a trouvé **19 fichiers de test**, le plus gros dossier de tests hors `Externals/`.
+> **Pourquoi ce fichier ?** Je cherchais un `.jenga` que le cours ne montre pas. Les chapitres présentent ceux de NKGui, NKCanvas, NKGuiIntegration, NKGuiDemo, NKImage, NKFont, NKAudio, NKMedia et NKNetwork, mais **jamais celui de NKMemory**. Pourtant, ce module, on l'a déjà croisé deux fois :
+> - quand j'ai construit NKMath, Jenga l'a compilé en **3ᵉ position** (14 fichiers `.cpp`, 2,55 secondes) ;
+> - quand j'ai compté les sources, c'est lui qui avait **le plus de fichiers de test** hors `Externals/` : 19.
 >
-> **Le fichier** : 85 lignes, 3 commits (`d557314e` 05/05, `1f26ef96` 29/05, `f19260db` 14/06/2026).
-> **Pour comprendre chaque ligne**, j'ai lu `config/modules.jenga`, `config/toolchain.jenga`, `Nkentseu.jenga`, et le code de Jenga 2.8.0 : `Core/Api.py`, `Core/Builder.py`, `Core/Loader.py`, `Commands/Build.py`, `Docs/GUIDE_COMPLET_JENGA.md`.
+> Le fichier fait 85 lignes et n'a été modifié que trois fois (5 mai, 29 mai et 14 juin 2026). Pour comprendre ce qu'il fait vraiment, le lire ne suffisait pas. J'ai ouvert les fichiers de configuration de Nkentseu (`config/modules.jenga`, `config/toolchain.jenga`, `Nkentseu.jenga`) et le code de Jenga 2.8.0. Les références entre parenthèses, comme `(Api.py:1617)`, indiquent où j'ai trouvé chaque information, pour que vous puissiez aller vérifier.
 
-**Légende**
+### Comment lire les annotations
 
-| Étiquette | Sens |
+Chaque ligne reçoit une étiquette qui dit à quoi elle sert :
+
+| Étiquette | Ce qu'elle veut dire |
 |---|---|
-| **TYPE** | quel genre de projet (bibliothèque, exécutable, tests) |
-| **SOURCES** | quels fichiers sont compilés ou inclus |
-| **DÉP** | dépendances : autres modules ou bibliothèques système |
-| **FILTRE** | condition « seulement si… » (plateforme, configuration, option) |
-| **TESTS** | suite de tests |
-| **RÉGLAGE** | option de compilation ou dossier de sortie |
-| **DOC** | commentaire ou description, sans effet sur la construction |
-| ❓ | **je ne comprends pas encore**, ou je ne l'ai pas vérifié |
+| **TYPE** | le genre de projet : bibliothèque, programme, tests |
+| **SOURCES** | les fichiers compilés ou inclus |
+| **DÉP** | ce dont le module a besoin : d'autres modules ou des bibliothèques du système |
+| **FILTRE** | une condition : « seulement sous Linux », « seulement en Debug »… |
+| **TESTS** | les tests du module |
+| **RÉGLAGE** | une option de compilation ou un dossier de sortie |
+| **DOC** | un commentaire, sans effet sur la construction |
+| ❓ | **je ne comprends pas encore**, ou je n'ai pas pu le vérifier |
 
 ---
 
-## 1. Le fichier en résumé
+## 1. Ce fichier en cinq phrases
 
-| Rubrique | Ce que dit le fichier | Comment je l'ai vérifié |
-|---|---|---|
-| **TYPE** | Bibliothèque statique. Aucune ligne `kind(...)` : le type vient de `nkentseudependson(selfexport=...)` | `modules.jenga:41` et `:359`, `Api.py:1617-1625`, et la ligne « NKMemory StaticLib » du rapport workspace |
-| **SOURCES** | 14 `.cpp` compilés, 19 `.h` listés, en-tête précompilé `pch/pch.h` | La construction de NKMath a affiché « Found 14 source file(s) » |
-| **DÉP** | NKCore, NKPlatform, plus `pthread` (Linux), `log` (Android), `hilog_ndk.z` (HarmonyOS) | La construction a affiché « depends: NKCore, NKPlatform » |
-| **FILTRE** | 12 blocs `filter` : 1 pour les dossiers UWP, 8 par plateforme, 2 par configuration, 1 pour les tests. S'y ajoutent 4 filtres Linux cachés dans le helper | Lecture du fichier et de `modules.jenga:482-506` |
-| **TESTS** | Crée un 2ᵉ projet `NKMemory_Tests` avec 19 `.cpp`. **Leur compilation est désactivée par défaut** pour tout le workspace | `Api.py:937-994`, `Nkentseu.jenga:451-453` |
+- **C'est une bibliothèque statique**, mais aucune ligne ne le dit en clair. C'est un appel de fonction, à la ligne 27, qui le décide *(modules.jenga:41 et :359, Api.py:1617-1625)*.
+- **Il compile 14 fichiers `.cpp`.** Il liste aussi 19 en-têtes `.h`, mais ceux-là ne sont pas compilés à part. Jenga l'a confirmé en affichant « Found 14 source file(s) » pendant la construction de NKMath.
+- **Il dépend de NKCore et de NKPlatform**, plus d'une bibliothèque système selon la plateforme : `pthread` sous Linux, `log` sous Android, `hilog_ndk.z` sous HarmonyOS.
+- **Il pose 12 conditions (`filter`)** : une pour ranger à part les fichiers UWP, huit pour s'adapter à chaque plateforme, deux pour Debug et Release, une pour les tests. Quatre autres conditions, pour Linux, sont cachées dans une fonction qu'il appelle *(modules.jenga:482-506)*.
+- **Il déclare 19 tests**, qui forment un second projet nommé `NKMemory_Tests`… mais le workspace désactive leur compilation par défaut *(Nkentseu.jenga:451-453)*.
 
 ---
 
-## 2. Annotation
+## 2. Le fichier, bloc par bloc
 
-### Lignes 1 à 15 — en-tête et description
+### Lignes 1 à 15 — la carte d'identité
 
 ```python
  1  #!/usr/bin/env python3
@@ -56,27 +55,31 @@
 15  """
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 1 | DOC | Ligne « shebang » de Python : un `.jenga` **est un script Python** (cours, `00-avant-propos.md:333`). Jenga ne l'exécute pas comme un programme : il le lit puis le fait tourner avec `exec()` (`Loader.py:282`). ❓ À quoi sert alors cette ligne ? Peut-être seulement à l'éditeur. |
-| 2 | DOC | Déclare l'encodage UTF-8. Jenga lit le fichier en `utf-8-sig` (`Loader.py:282`). |
-| 3, 15 | DOC | Début et fin d'une chaîne de description (*docstring*), sans effet sur la construction. |
-| 4 à 7 | DOC | **Texte abîmé.** « â€” » et « mÃ©moire » sont de l'UTF-8 **encodé deux fois** : le fichier contient 11 séquences d'octets `C3 83`. Sans effet sur la construction, puisque cette chaîne n'est jamais utilisée. Pour comparer, `NKContainers.jenga` a des accents corrects. ❓ Lequel des 3 commits a abîmé le texte ? |
-| 9 à 14 | DOC | **Liste périmée.** Elle cite 5 fichiers alors que `src/NKMemory/` contient **14 `.cpp` et 19 `.h`**. Les fichiers cités existent (`NkSharedPtr.h` et `NkUniquePtr.h` sont bien là), mais `NkGc`, `NkHash`, `NkPoolAllocator`, `NkTracker`… manquent. C'est le même genre d'écart que le cours relève dans `NKFont.jenga` (chap. 6) et `NKNetwork.jenga` (chap. 9). |
+**En clair :** rien ici ne sert à construire. Le fichier se présente comme un script Python, puis décrit le module. Et cette description a deux défauts : ses accents sont abîmés, et elle n'est plus à jour.
 
-### Lignes 17 et 18 — imports
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 1 | DOC | Cette ligne dit « je suis un script Python ». C'est vrai : un `.jenga` **est** du Python (le cours le dit dans l'avant-propos). Mais Jenga ne le lance pas comme un programme : il lit le fichier et exécute son contenu *(Loader.py:282)*. ❓ Alors à quoi sert cette ligne ? Peut-être seulement à aider l'éditeur. |
+| 2 | DOC | Annonce que le fichier est en UTF-8. Jenga le lit bien ainsi. |
+| 3 et 15 | DOC | Les triples guillemets ouvrent et ferment la description du module. |
+| 4 à 7 | DOC | **Les accents sont abîmés.** « mÃ©moire » au lieu de « mémoire » : le texte a été converti en UTF-8 **deux fois** (on trouve 11 fois la séquence d'octets `C3 83` dans le fichier). Ce n'est pas grave pour la construction, car personne ne lit ce texte. `NKContainers.jenga`, lui, a des accents corrects. ❓ Laquelle des trois modifications a causé ce problème ? |
+| 9 à 14 | DOC | **La liste est périmée.** Elle cite 5 fichiers, alors que le dossier en contient **14 `.cpp` et 19 `.h`**. Les fichiers cités existent bien, mais d'autres comme `NkGc`, `NkHash`, `NkPoolAllocator` ou `NkTracker` n'y figurent pas. Le cours relève le même genre d'oubli dans `NKFont.jenga` (chap. 6) et `NKNetwork.jenga` (chap. 9). |
+
+### Lignes 17 et 18 — on sort les outils
 
 ```python
 17  from Jenga import *
 18  from jengaconfig import *
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 17 | RÉGLAGE | Importe les fonctions de Jenga : `project`, `files`, `filter`, `test`… (définies dans `Core/Api.py`). |
-| 18 | RÉGLAGE | **Import sans effet.** `jengaconfig` est un module vide qui sert à l'éditeur, rangé dans `.jenga-typings` (`Loader.py:271-273`). Les vrais symboles, `nkentseudependson` et `TC_WINDOWS`, viennent des `useconfig("config/…")` de `Nkentseu.jenga:435-437`. |
+**En clair :** avant d'écrire quoi que ce soit, le fichier charge le vocabulaire de Jenga. La deuxième ligne est surprenante : elle ne charge rien.
 
-### Lignes 20 à 23 — le projet
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 17 | RÉGLAGE | Rend disponibles les mots de Jenga : `project`, `files`, `filter`, `test`… |
+| 18 | RÉGLAGE | **Cette ligne ne sert qu'à l'éditeur.** `jengaconfig` est un module vide, présent pour que l'éditeur ne signale pas d'erreur *(Loader.py:271-273)*. Les vraies fonctions de Nkentseu, comme `nkentseudependson`, sont chargées par le fichier racine *(Nkentseu.jenga:435-437)*. |
+
+### Lignes 20 à 23 — le projet s'ouvre
 
 ```python
 20  with project("NKMemory"):
@@ -85,14 +88,16 @@
 23      location(".")
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 20 | TYPE | Ouvre le projet **NKMemory**. Ce nom sert partout : dans les dépendances de NKContainers et NKMath, dans le jeton `%{prj.name}`, et dans le nom `NKMemory_Tests`. **Le type n'est pas écrit ici** (voir ligne 27). |
-| 21 | RÉGLAGE | Langage C++. |
-| 22 | RÉGLAGE | Norme C++17 (`Api.py:1655`). ❓ Option exacte passée à clang : probablement `-std=c++17`, non vérifié. |
-| 23 | SOURCES | `location(".")` : le dossier de base est celui du `.jenga`. Les chemins de `files()` et du PCH sont relatifs à lui (guide Jenga, lignes 1391-1397). |
+**En clair :** on ouvre le projet, on choisit le langage et la version du C++, et on dit où se trouvent les fichiers. Ce qui manque est plus intéressant : **nulle part on ne dit que c'est une bibliothèque**.
 
-### Lignes 25 à 29 — dépendances **et** type
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 20 | TYPE | Le nom **NKMemory** servira partout : dans les dépendances de NKContainers et de NKMath, dans les dossiers de sortie, et dans le nom du projet de tests `NKMemory_Tests`. Le type, lui, n'est pas écrit ici : il faut attendre la ligne 27. |
+| 21 | RÉGLAGE | Le module est écrit en C++. |
+| 22 | RÉGLAGE | Il utilise la norme C++17. ❓ Je suppose que Jenga passe `-std=c++17` au compilateur, mais je ne l'ai pas vu. |
+| 23 | SOURCES | `"."` veut dire « le dossier où se trouve ce fichier ». Tous les chemins qui suivent partent de là. |
+
+### Lignes 25 à 29 — le cœur du fichier
 
 ```python
 25      nkentseudependson(
@@ -102,27 +107,31 @@
 29      )
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 25 | DÉP | **Fonction propre à Nkentseu**, pas une fonction de Jenga : elle est définie dans `config/modules.jenga:334`. En un seul appel, elle émet les chemins d'inclusion (`includedirs`), les dépendances (`dependson`) et les `defines`. |
-| 26 | DÉP | Dépendances directes : **NKCore, NKPlatform**. On retrouve la même liste à 3 endroits : ici, dans le registre `modules.jenga:60` (`"NKMemory": _m("NKENTSEU_MEMORY", ["NKPlatform", "NKCore"])`), et dans l'affichage de la construction (« depends: NKCore, NKPlatform »). Le helper en déduit `dependson(["NKCore", "NKPlatform"])`, les chemins `%{NKCore.location}/src` et `%{NKPlatform.location}/src`, et les defines `NKENTSEU_CORE_STATIC_LIB` et `NKENTSEU_PLATFORM_STATIC_LIB`. |
-| 27 | **TYPE** | **C'est cette ligne qui fixe le type.** Avec `selfexport`, le helper passe en mode bibliothèque et appelle `kindexport(STATIC_LIB, "NKENTSEU_MEMORY")` (`modules.jenga:359`, avec `_GLOBAL_KIND = STATIC_LIB` à la ligne 41). Résultat : type **StaticLib** et define `NKENTSEU_MEMORY_STATIC_LIB` (`Api.py:1624-1625`). En mode bibliothèque, NKCore et NKPlatform sont **déclarés mais pas liés** (`modules.jenga:395`) : ce sont les applications qui les lient. Changer `_GLOBAL_KIND` ferait passer tout Nkentseu en `.dll`. |
-| 28 | SOURCES | Ajoute `src` et `pch` aux chemins d'inclusion. **C'est redondant** : en mode bibliothèque, le helper les ajoute déjà (`modules.jenga:379`), et le doublon est retiré (`_dedup`, ligne 417). |
-| *(effet caché)* | FILTRE | Le helper appelle aussi `_emit_linux_backend_defines(True)` (`modules.jenga:435`). Cela ajoute **4 filtres Linux invisibles dans ce fichier** (xcb, wayland, headless, xlib), qui posent `NKENTSEU_FORCE_WINDOWING_*_ONLY` et des dossiers de sortie séparés par backend. La raison est expliquée dans `modules.jenga:438-481` : sans eux, deux dispositions mémoire de `NkWindow` se retrouvaient dans le même binaire et provoquaient un plantage. |
+**En clair :** en apparence, c'est une simple liste de dépendances. En réalité, cet appel fait **quatre choses d'un coup** : il déclare les dépendances, ajoute les dossiers d'en-têtes à connaître, décide que NKMemory est une bibliothèque statique, et ajoute des réglages pour Linux qu'on ne voit pas ici. C'est le bloc qui m'a demandé le plus de recherche.
 
-### Lignes 31 et 32 — en-tête précompilé (PCH)
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 25 | DÉP | `nkentseudependson` **n'est pas une fonction de Jenga**. Elle a été écrite pour Nkentseu, dans `config/modules.jenga` (ligne 334), pour éviter de répéter les mêmes réglages dans chaque module. |
+| 26 | DÉP | NKMemory a besoin de **NKCore et NKPlatform**. Cette liste existe à trois endroits qui concordent : ici, dans le registre des modules *(modules.jenga:60)*, et dans ce que Jenga a affiché en construisant NKMath (« depends: NKCore, NKPlatform »). À partir de ces deux noms, la fonction trouve seule où sont leurs en-têtes et ajoute les réglages nécessaires. |
+| 27 | **TYPE** | **C'est ici que NKMemory devient une bibliothèque statique.** En écrivant `selfexport="NKMemory"`, on dit « ce projet est une bibliothèque qui s'appelle NKMemory ». La fonction applique alors le réglage choisi pour tout Nkentseu : bibliothèque **statique**, un fichier `.lib` *(modules.jenga:41 et :359)*. Autre conséquence : NKMemory **annonce** qu'il a besoin de NKCore et NKPlatform, mais ne les **assemble** pas avec lui. Ce travail revient à l'application finale *(modules.jenga:395)*. Si on changeait ce réglage global, tous les modules deviendraient des `.dll`. |
+| 28 | SOURCES | Demande d'ajouter les dossiers `src` et `pch` à la liste des en-têtes. **C'est inutile** : la fonction les ajoute déjà d'elle-même pour une bibliothèque, puis retire les doublons *(modules.jenga:379 et :417)*. |
+| *(caché)* | FILTRE | La fonction ajoute aussi **quatre conditions pour Linux** qu'on ne voit pas dans ce fichier *(modules.jenga:435)*. Sous Linux, on peut afficher les fenêtres de plusieurs façons (XLib, XCB, Wayland, ou sans fenêtre). Selon ce choix, la fonction pose le bon réglage et range les fichiers produits dans un dossier séparé. Le commentaire de `modules.jenga` (lignes 438-481) raconte pourquoi : un jour, deux versions incompatibles de la même classe se sont retrouvées dans le même programme, et l'application plantait au démarrage. |
+
+### Lignes 31 et 32 — gagner du temps de compilation
 
 ```python
 31      pchheader("pch/pch.h")
 32      pchsource("pch/pch.cpp")
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 31 | SOURCES | En-tête **précompilé** : `pch/pch.h` inclut `stddef.h`, `stdint.h`, `stdlib.h`, `string.h`, `new` et `stdio.h`. Après la construction de NKMath, `Build\Obj` contenait bien 5 fichiers `.pch`, un par projet. |
-| 32 | SOURCES | Le `.cpp` qui sert à fabriquer le `.pch`. ❓ Il ne fait pas partie des « 14 source file(s) » affichés. Est-il compilé à part ? |
+**En clair :** un **en-tête précompilé** (PCH), c'est un groupe d'en-têtes que le compilateur analyse une seule fois puis réutilise pour tous les `.cpp`, au lieu de les relire à chaque fichier.
 
-### Lignes 34 à 37 — fichiers source
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 31 | SOURCES | `pch.h` regroupe six en-têtes standards : `stddef.h`, `stdint.h`, `stdlib.h`, `string.h`, `new` et `stdio.h`. Après la construction de NKMath, j'ai bien trouvé 5 fichiers `.pch` dans `Build\Obj`, un par module. |
+| 32 | SOURCES | `pch.cpp` sert à fabriquer ce fichier précompilé. ❓ Il ne fait pas partie des « 14 source file(s) » annoncés par Jenga. Est-il compilé à part ? |
+
+### Lignes 34 à 37 — les fichiers à compiler
 
 ```python
 34      files([
@@ -131,25 +140,28 @@
 37      ])
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 34 à 37 | SOURCES | `**` parcourt tous les sous-dossiers de `src/NKMemory/`. |
-| 35 | SOURCES | Les `.cpp` : **14 fichiers**, ceux que Jenga compile (« Found 14 source file(s) » pendant la construction de NKMath) : `NkAllocator`, `NkContainerAllocator`, `NkFunction`, `NkFunctionSIMD`, `NkGc`, `NkGlobalOperators`, `NkHash`, `NkMemory`, `NkMultiLevelAllocator`, `NkPoolAllocator`, `NkProfiler`, `NkTag`, `NkTracker`, `NkUtils`. |
-| 36 | SOURCES | Les `.h` : **19 en-têtes listés mais pas compilés à part**. C'est la réponse concrète à la question « compte-t-on les en-têtes ? » du rapport de comptage. ❓ Pourquoi les lister, alors que `NKContainers.jenga:32-34` ne liste que les `.cpp` ? Pour les projets d'IDE générés ? Pour la recompilation incrémentale ? |
+**En clair :** « prends tous les `.cpp` et tous les `.h` du dossier `src/NKMemory`, sous-dossiers compris ». Les deux étoiles `**` veulent dire « cherche aussi dans les sous-dossiers ».
 
-### Lignes 39 et 40 — dossiers de sortie
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 35 | SOURCES | Les **14 `.cpp`** sont ceux que Jenga a compilés : `NkAllocator`, `NkContainerAllocator`, `NkFunction`, `NkFunctionSIMD`, `NkGc`, `NkGlobalOperators`, `NkHash`, `NkMemory`, `NkMultiLevelAllocator`, `NkPoolAllocator`, `NkProfiler`, `NkTag`, `NkTracker` et `NkUtils`. |
+| 36 | SOURCES | Les **19 `.h`** sont listés, mais **jamais compilés seuls** : ils sont lus au travers des `.cpp` qui les incluent. Voilà une réponse concrète à la question « compte-t-on les en-têtes ? » de l'exercice de comptage. ❓ Pourquoi les lister alors, quand `NKContainers.jenga` se contente des `.cpp` ? Pour générer un projet d'IDE ? Pour savoir quoi recompiler quand un `.h` change ? |
+
+### Lignes 39 et 40 — où ranger le résultat
 
 ```python
 39      objdir("%{wks.location}/Build/Obj/%{cfg.buildcfg}-%{cfg.system}/%{prj.name}")
 40      targetdir("%{wks.location}/Build/Lib/%{cfg.buildcfg}-%{cfg.system}")
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 39 | RÉGLAGE | Dossier des fichiers objets. Jetons (guide Jenga, lignes 672-678) : `%{wks.location}` = racine du dépôt, `%{cfg.buildcfg}` = `Debug`, `%{cfg.system}` = `Windows`, `%{prj.name}` = `NKMemory`. Ici : `Build/Obj/Debug-Windows/NKMemory`, créé pendant la construction de NKMath. |
-| 40 | RÉGLAGE | Dossier de la bibliothèque : `Build/Lib/Debug-Windows/NKMemory.lib`, 687 286 octets. Ce dossier est ignoré par git (`.gitignore:151`). |
+**En clair :** les morceaux entre `%{…}` sont remplacés au moment de construire. `%{wks.location}` devient la racine du dépôt, `%{cfg.buildcfg}` devient `Debug`, `%{cfg.system}` devient `Windows` et `%{prj.name}` devient `NKMemory` (guide Jenga, lignes 672-678).
 
-### Lignes 42 à 44 — dossiers séparés pour UWP
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 39 | RÉGLAGE | Les fichiers intermédiaires vont dans `Build/Obj/Debug-Windows/NKMemory`. Ce dossier est apparu quand j'ai construit NKMath. |
+| 40 | RÉGLAGE | La bibliothèque finale va dans `Build/Lib/Debug-Windows/NKMemory.lib` (687 286 octets). git ignore ce dossier *(.gitignore:151)*. |
+
+### Lignes 42 à 44 — un coin à part pour UWP
 
 ```python
 42      with filter("system:Windows && options:windows-runtime=uwp"):
@@ -157,12 +169,14 @@
 44          targetdir("%{wks.location}/Build/Lib/%{cfg.buildcfg}-%{cfg.system}-uwp")
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 42 | FILTRE | Vrai si la cible est Windows **et** que l'option `windows-runtime` vaut `uwp`. Cette option est déclarée dans `Nkentseu.jenga:503-521`, avec `desktop` pour valeur par défaut. `&&` veut dire « et ». |
-| 43, 44 | RÉGLAGE | **Remplace** les dossiers des lignes 39-40 par des dossiers suffixés `-uwp`, pour que les objets desktop et UWP ne se mélangent pas. Un réglage placé dans un filtre écrase la valeur générale (`Builder.py:1400-1402`). ❓ Les valeurs par défaut des options sont bien appliquées (`Build.py:96-117`), donc ce bloc devrait être faux sans `--options windows-runtime=uwp`. Mais je n'ai pas lu comment la paire « windows-runtime / desktop » devient le texte que teste `options:` (`Builder.py:95` et `:1199-1205`). |
+**En clair :** UWP est une autre façon de faire des applications Windows. Si on construit pour UWP, les fichiers vont dans des dossiers qui finissent par `-uwp`, pour ne pas se mélanger avec ceux du Windows classique.
 
-### Lignes 46 à 69 — toolchain et bibliothèques système par plateforme
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 42 | FILTRE | La condition se lit « Windows **et** option UWP ». `&&` veut dire « et ». L'option `windows-runtime` est déclarée dans `Nkentseu.jenga` (lignes 503-521), et vaut `desktop` si on ne précise rien. |
+| 43 et 44 | RÉGLAGE | Ces deux lignes **remplacent** les dossiers des lignes 39-40, mais seulement si la condition est vraie *(Builder.py:1400-1402)*. ❓ Par défaut, cette condition devrait donc être fausse. Mais je n'ai pas lu en détail comment Jenga compare la valeur `desktop` au texte `windows-runtime=uwp`. |
+
+### Lignes 46 à 69 — s'adapter à chaque plateforme
 
 ```python
 46      with filter("system:Windows && !options:windows-runtime=uwp && !system:XboxSeries && !system:XboxOne"):
@@ -191,24 +205,24 @@
 69          usetoolchain("xbox-clang")
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 46 | FILTRE | Windows desktop : ni UWP, ni Xbox. `!` veut dire « non ». |
-| 47 | RÉGLAGE | `TC_WINDOWS` vaut `"nk-windows-clang-mingw"` (`config/toolchain.jenga:14`). Cette toolchain clang est enregistrée par `nkentseutoolchain()` (`Nkentseu.jenga:447`) avec `--target=x86_64-w64-windows-gnu`, `WINVER=0x0601` et `_WIN32_WINNT=0x0601`. Dans un filtre, son existence n'est vérifiée qu'au moment de la construction (`Api.py:1977-1979`). ❓ **La construction a affiché « Toolchain: clang-mingw »**, et le rapport workspace ne liste pas `nk-windows-clang-mingw` parmi les 6 toolchains. Laquelle a vraiment compilé NKMemory ? |
-| 48 | FILTRE | `&&` passe avant `||` (`Builder.py:1108-1124`). Il faut donc lire : « UWP » **ou** « (Windows **et** uwp) ». ❓ `system:UWP` ne semble jamais pouvoir être vrai : la liste `TargetOS` de Jenga n'a pas de UWP (`Api.py:67-85`), et `Nkentseu.jenga:501` le dit lui-même (« Jenga v2.0.1 n'expose pas TargetOS.UWP »). Pourquoi l'avoir écrit ? |
-| 49 | RÉGLAGE | Toolchain `xbox-clang` pour UWP. ❓ Pourquoi une toolchain Xbox pour du UWP Windows ? Jenga traite UWP comme une variante Xbox (`Core/Builders/Xbox.py`, mode « UWP Dev Mode »), mais je ne comprends pas encore le lien. |
-| 50, 51 | FILTRE / DÉP | Sous Linux, lien avec `pthread`, la bibliothèque des threads POSIX. ❓ Quel est l'effet sur une bibliothèque **statique**, qui n'est pas liée elle-même ? Le lien est-il transmis aux programmes qui utilisent NKMemory ? |
-| 52, 53 | FILTRE | macOS : toolchain `clang-native`. |
-| 54 | FILTRE | Android. |
-| 55 | DOC | Commentaire : le PCH est désactivé à cause de NDK r27 + clang 18 + libc++. ❓ Nature exacte du problème non vérifiée. |
-| 56, 57 | RÉGLAGE | Une chaîne **vide** dans un filtre **remplace** le PCH des lignes 31-32 (`Builder.py:1409-1414`). Résultat : pas d'en-tête précompilé sur Android. |
-| 58 | RÉGLAGE | Toolchain `android-ndk`. |
-| 59 | DÉP | Lien avec `log`, la bibliothèque de journalisation d'Android. ❓ Même question que pour `pthread`. |
-| 60 à 65 | FILTRE | HarmonyOS : même schéma qu'Android (PCH désactivé, toolchain `ohos-ndk`, lien `hilog_ndk.z`). ❓ Le « `.z` » fait-il partie du nom de la bibliothèque (`libhilog_ndk.z.so`) ? |
-| 66, 67 | FILTRE | Web : toolchain `emscripten`. |
-| 68, 69 | FILTRE | Xbox Series ou Xbox One : toolchain `xbox-clang`. |
+**En clair :** pour chaque plateforme, le fichier choisit une **toolchain**, c'est-à-dire le compilateur et les outils qui vont avec. Parfois il ajoute une bibliothèque du système. Sur ma machine Windows, seul le premier bloc me concerne.
 
-### Lignes 71 à 78 — Debug et Release
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 46 | FILTRE | « Windows classique » : Windows, **mais pas** UWP, **ni** Xbox. `!` veut dire « non ». |
+| 47 | RÉGLAGE | `TC_WINDOWS` vaut `"nk-windows-clang-mingw"` *(config/toolchain.jenga:14)* : une toolchain clang que Nkentseu déclare lui-même, avec ses propres réglages pour Windows. ❓ **Quelque chose ne colle pas** : pendant la construction, Jenga a affiché « Toolchain: clang-mingw », et ce nom `nk-windows-clang-mingw` n'apparaît pas dans la liste des 6 toolchains du rapport workspace. Laquelle a vraiment compilé NKMemory ? |
+| 48 | FILTRE | Jenga évalue les « et » avant les « ou » *(Builder.py:1108-1124)*. La condition se lit donc « UWP », **ou bien** « Windows et option UWP ». ❓ La première moitié me paraît impossible : Jenga ne connaît aucun système nommé UWP *(Api.py:67-85)*, et `Nkentseu.jenga` le reconnaît lui-même (ligne 501). Pourquoi l'avoir écrite ? |
+| 49 | RÉGLAGE | Pour UWP, on prend la toolchain Xbox. ❓ Pourquoi la Xbox pour une application Windows ? Jenga semble traiter UWP comme un mode de la Xbox *(Core/Builders/Xbox.py)*, mais je ne saisis pas encore pourquoi. |
+| 50 et 51 | FILTRE / DÉP | Sous Linux, NKMemory a besoin de `pthread`, la bibliothèque des threads. ❓ Mais une bibliothèque statique n'est pas assemblée elle-même : que devient cette demande ? Est-elle transmise aux programmes qui utilisent NKMemory ? |
+| 52 et 53 | FILTRE | Sous macOS, on utilise le clang du système. |
+| 54 et 55 | FILTRE / DOC | Sous Android, un commentaire prévient que le PCH pose problème avec les outils Android du moment. ❓ Je n'ai pas cherché quel était ce problème. |
+| 56 et 57 | RÉGLAGE | Mettre un nom **vide** désactive le PCH des lignes 31-32, mais seulement pour Android *(Builder.py:1409-1414)*. |
+| 58 et 59 | RÉGLAGE / DÉP | Toolchain Android, et bibliothèque `log` pour écrire dans le journal d'Android. ❓ Même question que pour `pthread`. |
+| 60 à 65 | FILTRE | HarmonyOS suit le même schéma qu'Android. ❓ Le `.z` de `hilog_ndk.z` fait-il vraiment partie du nom de la bibliothèque ? |
+| 66 et 67 | FILTRE | Pour le Web, on compile avec Emscripten. |
+| 68 et 69 | FILTRE | Pour les Xbox, toolchain Xbox. |
+
+### Lignes 71 à 78 — Debug ou Release
 
 ```python
 71      with filter("config:Debug"):
@@ -221,18 +235,17 @@
 78          symbols(False)
 ```
 
-| Ligne | Rubrique | Annotation |
-|---|---|---|
-| 71 | FILTRE | Configuration Debug : le nom de la configuration est comparé au motif (`Builder.py:1174-1177`). C'est la configuration par défaut, celle utilisée pour construire NKMath. |
-| 72 | RÉGLAGE | Defines `_DEBUG`, `DEBUG`, `NKENTSEU_DEBUG`. **`NKENTSEU_DEBUG` est réellement lu** par le code de NKMemory : `NkTracker.h/.cpp`, `NkPoolAllocator.cpp`, `NkMultiLevelAllocator.cpp`, `NkTag.cpp`, `NkIntrusivePtr.h`. ❓ `NKMath.jenga:64` ne le pose pas, alors que NKMemory, NKContainers, NKCore et NKPlatform le posent. Pourquoi cette différence ? |
-| 73 | RÉGLAGE | Sans optimisation. ❓ Option exacte : probablement `-O0`. |
-| 74 | RÉGLAGE | Avec symboles de débogage. ❓ Option exacte : probablement `-g`. |
-| 75 | FILTRE | Configuration Release (`jenga build --config Release`). |
-| 76 | RÉGLAGE | `NDEBUG` désactive les `assert` standard. |
-| 77 | RÉGLAGE | Optimisation pour la vitesse. ❓ `-O2` ou `-O3` ? |
-| 78 | RÉGLAGE | Sans symboles de débogage. |
+**En clair :** en **Debug**, on veut pouvoir suivre le programme pas à pas : pas d'optimisation, des informations de débogage, et des vérifications en plus. En **Release**, on veut la vitesse.
 
-### Lignes 80 à 83 — tests
+| Ligne | Étiquette | Ce que j'en comprends |
+|---|---|---|
+| 71 | FILTRE | Seulement en Debug, la configuration utilisée par défaut quand j'ai construit NKMath. |
+| 72 | RÉGLAGE | Trois mots-clés sont définis pour le code. `NKENTSEU_DEBUG` **sert vraiment** : on le retrouve dans `NkTracker`, `NkPoolAllocator`, `NkMultiLevelAllocator`, `NkTag` et `NkIntrusivePtr.h`, sans doute pour activer le suivi des allocations. ❓ Curieusement, NKMath ne le définit pas, alors que NKMemory, NKContainers, NKCore et NKPlatform le font. Oubli ou choix ? |
+| 73 et 74 | RÉGLAGE | Pas d'optimisation, mais des symboles de débogage. ❓ Je suppose que cela donne `-O0` et `-g` pour clang, sans l'avoir vérifié. |
+| 75 et 76 | FILTRE / RÉGLAGE | En Release, `NDEBUG` désactive les `assert` standard. |
+| 77 et 78 | RÉGLAGE | Optimisation pour la vitesse, sans symboles. ❓ « Vitesse » veut-il dire `-O2` ou `-O3` ? |
+
+### Lignes 80 à 83 — les tests
 
 ```python
 80      # Tests unitaires/stress (desktop uniquement)
@@ -241,46 +254,58 @@
 83              testfiles(["tests/**.cpp"])
 ```
 
-| Ligne | Rubrique | Annotation |
+**En clair :** « sur les ordinateurs de bureau, crée un projet de tests avec tout ce qui se trouve dans `tests/` ». C'est du moins ce que dit le commentaire. En lisant la condition de près, j'ai eu une surprise.
+
+| Ligne | Étiquette | Ce que j'en comprends |
 |---|---|---|
-| 80 | DOC | Le commentaire annonce « desktop uniquement »… mais la ligne 81 dit autre chose. |
-| 81 | FILTRE / TESTS | Comme `&&` passe avant `||`, il faut lire : **[ (Linux ou macOS ou Windows desktop) et pas Android et pas iOS ] ou Web**. Les tests sont donc prévus sur Linux, macOS, Windows desktop **et Web**, ce qui contredit le commentaire. ❓ `!system:Android && !system:iOS` ne change rien, puisque la parenthèse ne contient ni Android ni iOS. Pourquoi les écrire ? ❓ Web est-il voulu, ou est-ce une erreur de parenthèses ? |
-| 82 | **TESTS** / TYPE | `with test():` crée un **deuxième projet** nommé `NKMemory_Tests`, de type **TEST_SUITE** (`Api.py:937-947`). C'est la ligne « NKMemory_Tests TestSuite Yes » du rapport workspace. Ce projet dépend de NKMemory, `__Unitest__`, NKCore et NKPlatform. Il copie les chemins, les defines et les réglages filtrés du parent (dont la toolchain), se lie à NKMemory, et produit dans `Build/Tests/Debug-Windows` (`Api.py:953-994`). Le bloc doit être placé directement dans un projet (`Api.py:911-916`). |
-| 83 | **TESTS** / SOURCES | `tests/**.cpp` : **19 fichiers**, 16 `test_*.cpp` (arena, buddy, pool, gc, stress…) et 3 `benchmark_*.cpp`. Comme l'appel est dans un filtre, ces fichiers ne sont pris que si le filtre est vrai (`Api.py:2948-2950`). |
-| *(effet caché)* | **TESTS** | **Ces tests ne sont pas compilés par défaut.** `Nkentseu.jenga:451` appelle `dutc(enable=True)`, raccourci de *disable unit test compilation* (`Api.py:1453-1456`), et `:453` appelle `dute(enable=True)`, qui désactive leur exécution. D'après `jenga build --help`, `--force-tests` passe outre. C'est pour cela que `jenga build --target NKMath` n'a pas construit `NKMemory_Tests`. ❓ Quelle est la commande exacte pour les construire et les lancer : `jenga test` ? `jenga build --target NKMemory_Tests --force-tests` ? Non essayé. |
+| 80 | DOC | Le commentaire promet « desktop uniquement ». |
+| 81 | FILTRE / TESTS | **La condition ne dit pas la même chose.** Comme Jenga évalue les « et » avant les « ou », elle se lit : **(Linux ou macOS ou Windows classique, et pas Android, et pas iOS) — ou bien Web**. Les tests sont donc aussi prévus pour le **Web**, ce qui n'est pas du « desktop ». ❓ Et `pas Android, pas iOS` ne change rien, puisque la parenthèse ne contient ni l'un ni l'autre. Pourquoi l'écrire ? Le Web est-il voulu, ou manque-t-il une parenthèse ? |
+| 82 | **TESTS** / TYPE | `with test()` crée un **second projet**, `NKMemory_Tests`, de type suite de tests *(Api.py:937-947)*. C'est lui qui apparaît dans le rapport workspace. Il reprend les réglages de NKMemory, dépend de NKMemory, de NKCore, de NKPlatform et de `__Unitest__`, le framework de test de Jenga, et range son programme dans `Build/Tests/Debug-Windows` *(Api.py:953-994)*. |
+| 83 | **TESTS** / SOURCES | Le dossier `tests/` contient **19 fichiers** : 16 tests (`test_allocator_pool.cpp`, `test_gc.cpp`, `test_memory_stress.cpp`…) et 3 mesures de performance (`benchmark_*.cpp`). |
+| *(caché)* | **TESTS** | **Ces tests ne sont pas compilés par défaut.** Le fichier racine `Nkentseu.jenga` désactive la compilation des tests (`dutc`, ligne 451) et leur exécution (`dute`, ligne 453) pour tout le workspace. C'est pour cela que la construction de NKMath n'a pas touché à `NKMemory_Tests`. D'après `jenga build --help`, l'option `--force-tests` passe outre. ❓ Je n'ai pas essayé. Est-ce `jenga test`, ou `jenga build --target NKMemory_Tests --force-tests` ? |
 
 ---
 
-## 3. Ce que ce fichier apprend, en lien avec les exercices précédents
+## 3. Ce que ce fichier éclaire dans nos exercices précédents
 
-| Exercice précédent | Ce que NKMemory.jenga explique |
+| Ce qu'on avait vu | Ce que NKMemory.jenga explique |
 |---|---|
-| **Rapport workspace** : « NKMemory StaticLib » et « NKMemory_Tests TestSuite » | Le type **n'est écrit nulle part en clair**. StaticLib vient de `selfexport` (ligne 27), TestSuite de `with test()` (ligne 82). |
-| **Comptage** : « les en-têtes sont-ils comptés ? » | Le fichier liste les `.h` (ligne 36), mais Jenga ne compile que les 14 `.cpp` (ligne 35). |
-| **Comptage** : « les tests sont-ils comptés ? » | Les 19 tests existent (ligne 83), mais leur compilation est désactivée par défaut par le workspace (`dutc`). |
-| **Construction de NKMath** : 3ᵉ position, « depends: NKCore, NKPlatform » | C'est la liste de la ligne 26, recopiée à l'identique par Jenga. |
-| **Construction de NKMath** : dossiers `Build/Obj` et `Build/Lib` | Ils viennent des lignes 39-40. Sous Linux, le helper les remplace par des dossiers séparés par backend. |
-| **Cours** : descriptions de `.jenga` périmées (NKFont, NKNetwork) | Même défaut ici (lignes 9-14), avec en plus un texte mal encodé (lignes 4-7). |
+| Le rapport workspace affichait « NKMemory StaticLib » et « NKMemory_Tests TestSuite » | Aucun des deux types n'est écrit en clair. StaticLib vient de `selfexport` (ligne 27), TestSuite de `with test()` (ligne 82). |
+| Au comptage, on se demandait s'il fallait compter les en-têtes | Le fichier liste les `.h`, mais Jenga ne compile que les `.cpp`. |
+| Au comptage, on se demandait s'il fallait compter les tests | Les 19 tests existent bien, mais le workspace ne les compile pas par défaut. |
+| En construisant NKMath, Jenga affichait « depends: NKCore, NKPlatform » pour NKMemory | C'est mot pour mot la liste de la ligne 26. |
+| Le dossier `Build/` est apparu avec la construction | Son chemin vient des lignes 39-40. |
+| Le cours signalait des descriptions de `.jenga` périmées (NKFont, NKNetwork) | Même défaut ici, avec en prime des accents abîmés. |
 
 ---
 
-## 4. Tout ce que je ne comprends pas encore (❓)
+## 4. Ce que je ne comprends pas encore
 
-| N° | Ligne | Question | Piste pour y répondre |
+J'ai relevé **16 points** que je n'ai pas encore élucidés. Pour chacun, voici ce que je ferais pour trouver la réponse.
+
+| N° | Ligne | Ma question | Ce que je ferais pour trouver |
 |---:|---|---|---|
-| 1 | 1 | À quoi sert le shebang, puisque Jenga lance le fichier avec `exec()` ? | Essayer d'exécuter `python NKMemory.jenga` directement |
-| 2 | 4-7 | Quel commit a encodé la description deux fois ? | `git log -p -- Kernel/Foundation/NKMemory/NKMemory.jenga` |
-| 3 | 22 | Option exacte pour C++17 ? | `jenga build --target NKMemory --verbose` (option `--verbose` listée dans `--help`) |
+| 1 | 1 | Si Jenga exécute le fichier lui-même, à quoi sert la ligne `#!/usr/bin/env python3` ? | Lancer `python NKMemory.jenga` et voir ce qui se passe |
+| 2 | 4-7 | Qui a abîmé les accents, et quand ? | Parcourir les trois modifications avec `git log -p -- Kernel/Foundation/NKMemory/NKMemory.jenga` |
+| 3 | 22 | Quelle option exacte correspond au C++17 ? | Construire avec `jenga build --target NKMemory --verbose` et lire les commandes affichées |
 | 4 | 32 | `pch.cpp` est-il compilé à part des 14 sources ? | Même commande `--verbose` |
-| 5 | 36 | Pourquoi lister les `.h` alors qu'ils ne sont pas compilés ? | Chercher ce que fait `project.files` avec les `.h` dans `Core/Builder.py` |
-| 6 | 42-48 | Comment l'option par défaut `desktop` devient-elle le texte testé par `options:` ? | Lire `Commands/Build.py` après la ligne 119, puis `Builder.py:95` |
-| 7 | 47 | Pourquoi « Toolchain: clang-mingw » s'affiche-t-il au lieu de `nk-windows-clang-mingw` ? Laquelle compile vraiment ? | `--verbose`, et comparer `Utils/Reporter.py:971` avec `Builder.py:1420-1423` |
-| 8 | 48 | `system:UWP` peut-il être vrai un jour ? | `TargetOS` n'a pas de UWP : essayer `--platform UWP` |
-| 9 | 49 | Pourquoi la toolchain `xbox-clang` pour UWP ? | Lire `Core/Builders/Xbox.py` (mode « uwp ») |
-| 10 | 51, 59, 65 | Que devient `links(...)` sur une bibliothèque statique ? | Construire sous Linux une application qui dépend de NKMemory et regarder la ligne d'édition de liens |
-| 11 | 55 | Quel bug de PCH avec NDK r27 + clang 18 ? | Chercher dans `BugReports/` et l'historique git |
-| 12 | 65 | Le `.z` de `hilog_ndk.z` fait-il partie du nom ? | Documentation du NDK HarmonyOS |
-| 13 | 72 | Pourquoi NKMath ne pose-t-il pas `NKENTSEU_DEBUG` ? | Chercher ce define dans `Kernel/Foundation/NKMath/src` |
-| 14 | 73-77 | Options exactes de `Off`, `Speed` et `symbols` ? | `--verbose`, en Debug puis avec `--config Release` |
-| 15 | 81 | `!Android && !iOS` inutiles, et Web voulu ou erreur de parenthèses ? | Comparer avec les autres modules : NKMath et NKContainers ont exactement la même ligne |
-| 16 | 82-83 | Commande exacte pour construire et lancer `NKMemory_Tests` ? | `jenga test --help`, puis `jenga build --target NKMemory_Tests --force-tests` |
+| 5 | 36 | Pourquoi lister les `.h` s'ils ne sont pas compilés ? | Chercher ce que Jenga fait des `.h` dans `Core/Builder.py` |
+| 6 | 42-48 | Comment la valeur par défaut `desktop` est-elle comparée au texte `windows-runtime=uwp` ? | Lire la suite de `Commands/Build.py` (après la ligne 119) |
+| 7 | 47 | Pourquoi Jenga affiche-t-il `clang-mingw` au lieu de `nk-windows-clang-mingw` ? Laquelle compile vraiment ? | `--verbose`, puis comparer `Utils/Reporter.py:971` et `Builder.py:1420-1423` |
+| 8 | 48 | La condition `system:UWP` peut-elle être vraie un jour ? | Essayer `jenga build --target NKMemory --platform UWP` |
+| 9 | 49 | Pourquoi une toolchain Xbox pour UWP ? | Lire le mode UWP dans `Core/Builders/Xbox.py` |
+| 10 | 51, 59, 65 | Que devient `links(...)` pour une bibliothèque statique ? | Construire sous Linux une petite application qui utilise NKMemory et regarder la commande d'assemblage |
+| 11 | 55 | Quel problème de PCH avec les outils Android ? | Chercher dans `BugReports/` et dans l'historique git |
+| 12 | 65 | Le `.z` de `hilog_ndk.z` fait-il partie du nom ? | Consulter la documentation du NDK HarmonyOS |
+| 13 | 72 | Pourquoi NKMath ne définit-il pas `NKENTSEU_DEBUG` ? | Chercher ce mot-clé dans le code de NKMath |
+| 14 | 73-77 | Quelles options exactes pour Debug et Release ? | `--verbose`, une fois en Debug et une fois avec `--config Release` |
+| 15 | 81 | Le Web est-il voulu dans les tests, ou manque-t-il une parenthèse ? | NKMath et NKContainers ont exactement la même condition : chercher qui l'a écrite en premier |
+| 16 | 82-83 | Comment construire et lancer `NKMemory_Tests` ? | `jenga test --help`, puis essayer `jenga build --target NKMemory_Tests --force-tests` |
+
+---
+
+## 6. Ce que je retiens
+
+Je pensais qu'un fichier de 85 lignes se lirait en dix minutes. En réalité, **NKMemory.jenga ne se comprend pas tout seul**. Son type est décidé par une fonction écrite ailleurs. Quatre de ses conditions sont invisibles. Ses tests sont désactivés depuis le fichier racine. Et même sa propre description n'est plus à jour.
+
+La leçon que j'en tire : pour savoir ce que fait vraiment un module, **ce que Jenga affiche en construisant** (« Found 14 source file(s) », « depends: NKCore, NKPlatform ») est plus fiable que les commentaires. Il me reste 16 questions ouvertes, mais pour chacune je sais maintenant où chercher.
