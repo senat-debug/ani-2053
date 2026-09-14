@@ -249,21 +249,3 @@ Je n'ai **pas modifié Jenga** : c'est un outil installé à part, et le corrige
 
 ---
 
-## 9. Mes questions d'étudiant
-
-| Ma question | Mon hypothèse | Comment je pourrais vérifier |
-|---|---|---|
-| Combien de temps prendrait la seconde construction de NKMath si le dépôt était dans un chemin sans espace ? | Environ 3 s (chargement), puis `All files up to date` pour les 5 projets. | Cloner le dépôt dans `C:\dev\Nkentseu` et refaire R1 puis R2 |
-| Les autres machines de l'équipe ont-elles le même problème ? | Seulement si leur chemin contient un espace. `D:\Projets\2026\Nkentseu\Nkentseu`, cité dans les notes du cours, n'en a pas. | Comparer avec un journal de construction de l'intégration continue (`.github/`) |
-| La bibliothèque est-elle quand même re-liée à chaque fois ? | Oui : des objets tout neufs sont plus récents que la cible, donc `_CibleDejaAJour` répond « non ». | Compter les lignes `Linking...` : 5 dans R2 |
-| Pourquoi un espace dans le nom d'un dossier casse-t-il un outil en 2026 ? | Le format `.d` vient de Make, où l'espace sépare les fichiers. Il faut l'échapper, et donc aussi le lire correctement. | Chercher d'autres `.split()` sur des chemins dans `Jenga/Core` |
-| Les fins de ligne Windows (`\r\n`) des `.d` jouent-elles un rôle ? | Non : Jenga les traite (`replace("\\\r\n", " ")`), et dans le dossier sans espace tout fonctionne. | Déjà démontré par la contre-épreuve |
-
----
-
-## 10. Limites et état du dépôt
-
-- **Périmètre** : la chaîne NKMath (5 projets), pas les 274 projets du workspace. La cause trouvée touche pourtant **tout** fichier dont le `.d` contient le chemin du dépôt, c'est-à-dire tous.
-- **Contre-épreuve** : les deux dossiers ont été construits **en même temps**. Les temps « au mur » sont donc légèrement pollués ; le nombre de fichiers compilés et le message `All files up to date`, eux, ne le sont pas.
-- **Temps de nettoyage** : l'attribution d'environ 1,7 s au nettoyage est une déduction (23,1 − 21,4 s), pas une mesure séparée.
-- **Aucun fichier du dépôt n'a été modifié pour cet exercice.** Seuls les fichiers produits dans `Build/` ont été régénérés, et git les ignore. Les scripts `sigprobe.py` et `sigdiff.py`, ainsi que les deux projets de contre-épreuve, sont dans un dossier temporaire, hors du dépôt.&
