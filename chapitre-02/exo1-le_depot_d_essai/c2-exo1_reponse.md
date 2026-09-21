@@ -71,8 +71,3 @@ git log --oneline --graph --all
 
 Le graphe est une ligne droite, parce que je n'ai qu'une seule branche et aucune fusion. `(HEAD -> main)` veut dire que je suis sur `main` et que `main` pointe sur le dernier commit.
 
-## Ce que je retiens
-
-- Un commit garde l'**état complet** des fichiers, avec son parent, son auteur et son message. Avec `git cat-file -p HEAD`, j'ai vu que mon 3ᵉ commit contient les trois fichiers, pas seulement `liste.txt`.
-- Une branche, c'est juste un **nom qui pointe sur un commit**. Le fichier `.git/refs/heads/main` contient seulement `57473dc…`.
-- Chez quelqu'un d'autre, les identifiants seront différents : ils dépendent aussi de l'auteur et de la date.
