@@ -66,4 +66,3 @@ sortie = signe(v) * (|v| - zone) / (1 - zone)
 ```
 
 Ainsi la sortie repart de 0 juste après le seuil et atteint quand même 1 à fond de course. Ce n'est pas ce que fait le moteur aujourd'hui.
-
