@@ -93,5 +93,4 @@ if ((uint32)k->GetKey() == conf.codes[2].code) { /* valider */ }
 if (clavier.IsKeyPressed((NkKey)conf.codes[1].code)) x += 6.f;
 ```
 
-C'est le QCM 11 en pratique : ce qui varie d'un utilisateur à l'autre vit dans un fichier, pas dans le code.
 
