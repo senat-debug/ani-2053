@@ -1,0 +1,32 @@
+Ce que la coquille me donne :
+Trente-deux lignes utiles au lieu de cinquante-trois, pour le meme carre a la
+meme vitesse. Elle cree la fenetre et la cible de rendu, et verifie les deux.
+Elle tient la boucle et son ordre : le temps, les evenements, la mise a jour,
+Clear, mon OnRender, Display - je ne peux donc pas dessiner apres Display, ce
+qui est l'erreur qui donne un ecran noir avec un code de dessin juste. Elle
+plafonne dt, elle plafonne la cadence, elle gere pause et reprise sur mobile,
+et elle ferme proprement. Je n'ecris que trois choses : la configuration dans
+le constructeur, le mouvement dans OnUpdate, le dessin dans OnRender.
+
+Ce qu'elle me prend :
+Des decisions que je ne vois pas, et il faut savoir lesquelles. La plus
+precise : la coquille depile la file d'evenements elle-meme, donc mon
+application n'appelle PLUS PollEvent - un second depileur ne verrait rien.
+Ensuite, elle plafonne dt a 0,1 s et le remplace par 1/60 au-dela, et elle
+plafonne la cadence a 60 images par seconde ; ma version a la main a du
+recopier le premier plafond a la main pour aller a la meme vitesse, et elle
+tourne sans le second. Elle choisit aussi le backend graphique pour moi quand
+je ne dis rien, en consultant la ligne de commande et l'environnement, alors
+qu'a la main j'ecris NK_GFX_API_OPENGL noir sur blanc. Enfin elle lit ma
+configuration UNE SEULE FOIS, avant la fenetre : la modifier ensuite n'a aucun
+effet, et rien ne me previent.
+
+Quand je choisirais la main :
+Quand j'ai besoin de decider l'ordre moi-meme. Trois cas concrets. Le premier :
+deux fenetres - la coquille est volontairement mono-fenetre, et une application
+multi-fenetre garde la maniere classique. Le deuxieme : un pas de temps fixe.
+Pour un rejeu, le jeu doit avancer par pas de 1/60 s exactement, et non au
+rythme variable que dt me donne ; cela se code dans la boucle, pas dans
+OnUpdate. Le troisieme : dessiner sans fenetre, dans une NkRenderTexture, pour
+verifier des pixels dans un test - il n'y a alors ni fenetre a ouvrir ni boucle
+a tenir, donc la coquille n'a rien a m'apporter.
