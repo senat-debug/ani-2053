@@ -1,0 +1,33 @@
+Ce que la coquille fait a ma place :
+Elle cree la fenetre puis la cible de rendu, et verifie les deux : sans cela,
+un programme qui continue dessine dans le vide. Elle tient la boucle et ses
+quatre temps - le temps ecoule, la file des evenements, la mise a jour, le
+dessin - et elle plafonne dt a 0,1 s, parce qu'au retour de veille l'horloge
+rend plusieurs secondes d'un coup et que tout ce qui s'integre traverse alors
+les murs en une trame. Elle appelle Clear avec clearColor, puis OnRender, puis
+Display, dans cet ordre et toujours entre les deux. Elle plafonne la cadence a
+60 images par seconde, gere pause et reprise sur mobile, et ferme proprement.
+Mes 16 lignes utiles ne contiennent donc ni fenetre, ni boucle, ni Clear, ni
+Display : je ne remplis que les cases.
+
+Ce qui se passe si je configure dans OnInit :
+Rien ne se plaint, et c'est tout le probleme. J'ai essaye : en posant titre
+"Titre pose dans OnInit", taille 640 x 360 et fond rouge 200 60 60 dans OnInit,
+la fenetre s'ouvre avec le titre "Application NKCanvas" et la taille 960 x 540,
+c'est-a-dire les valeurs par defaut - mais le fond est bien rouge. La raison
+est dans la coquille : titre, largeur et hauteur sont recopies une seule fois
+dans la NkWindowConfig, avant la creation de la fenetre ; clearColor, lui, est
+relu a chaque image par Clear. Deux des trois reglages sont donc ignores en
+silence et le troisieme marche, ce qui est exactement ce qui fait perdre une
+heure : le symptome est partiel.
+
+Ce qui se passe sans NKMain.h :
+Tout compile. Le fichier fenetre.cpp passe sans une erreur ni un avertissement,
+et c'est l'edition de liens qui tombe. Le message exact que j'ai obtenu :
+crtexewin.c:62:(.text.startup+0xb6): undefined reference to `WinMain'. L'erreur
+ne nomme aucun de mes fichiers et parle d'un symbole que je n'ai jamais ecrit,
+donc je le cherche partout sauf la ou il manque. NKMain.h fournit le point
+d'entree natif de la plateforme - WinMain ici, android_main ailleurs - derriere
+mon nkmain. Le symptome a retenir : une erreur d'edition de liens sur un
+symbole absent de tout mon code, c'est presque toujours un point d'entree
+manquant.
