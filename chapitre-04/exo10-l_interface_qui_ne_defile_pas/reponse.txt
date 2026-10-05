@@ -1,0 +1,30 @@
+Ce que fait la barre sans ResetView :
+Elle defile avec le monde, dans le sens inverse, et finit par sortir de
+l'ecran. Mon journal le montre chiffre par chiffre : avec l'appel, barre_x vaut
+0, 0, 0 pendant que le centre de la vue passe de 570 a 810 ; sans l'appel, le
+meme centre donne barre_x -121, -241, -361. La barre est toujours dessinee a
+l'origine (0, 0), ligne de code inchangee : c'est l'ecran qui ne la voit plus
+au meme endroit. Sur sans.png, prise 4,5 s apres le lancement, il ne reste que
+l'extremite droite de la barre collee au bord gauche, et le texte est deja
+parti hors cadre. Sur avec.png, prise au meme instant, la barre et son texte
+sont en place, et les carres du monde sont aux memes positions dans les deux
+captures.
+
+Pourquoi :
+Parce qu'une vue n'est pas un objet qu'on dessine, c'est un ETAT du renderer.
+SetView ne s'applique pas au dessin suivant, il s'applique a TOUT ce qui suit,
+jusqu'a ce qu'on le change. Le renderer projette chaque sommet avec la
+transformation courante : avec une vue centree en centre_x et de la largeur de
+la fenetre, un point du monde en x apparait a l'ecran en x - (centre_x -
+largeur / 2). Pour la barre, x vaut 0, donc l'ecran la place en largeur / 2 -
+centre_x : c'est exactement la colonne barre_x de mon journal. Le code de
+l'interface est juste, le resultat est faux, et rien ne previent.
+
+Ou placer l'appel :
+Juste apres le dernier dessin du monde et juste avant le premier dessin de
+l'interface, dans la meme trame. Pas en debut de boucle, puisque la vue y est
+encore celle qu'on veut pour le monde ; pas en fin de trame apres Display, ou
+il ne servirait a rien. Dans mon fichier, c'est la ligne qui separe la boucle
+des carres de la barre. La regle generale : ce qui appartient au monde se
+dessine sous la vue, ce qui appartient a l'ecran se dessine apres ResetView,
+et l'ordre des deux groupes n'est pas negociable.
