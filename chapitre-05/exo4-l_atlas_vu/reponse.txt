@@ -1,0 +1,3 @@
+Pourquoi une seule texture : [tous les glyphes sont dans une seule image, donc le GPU dessine tout le texte en un seul lot au lieu d'une texture et d'un envoi par lettre]
+Ce que change la taille : [comparer tes deux lignes de compte.txt : le nombre de glyphes ne bouge pas, mais chaque glyphe prend plus de pixels donc la texture grandit]
+A quoi sert la marge entre glyphes : [texGlyphPadding (2 par defaut) laisse des pixels vides autour de chaque glyphe pour que le filtrage ne prenne pas un bout du glyphe voisin (bleeding)]

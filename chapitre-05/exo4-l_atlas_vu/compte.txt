@@ -1,0 +1,2 @@
+taille : 18, glyphes : A_REMPLIR, texture : A_REMPLIR A_REMPLIR, perdu : A_REMPLIR
+taille : 48, glyphes : A_REMPLIR, texture : A_REMPLIR A_REMPLIR, perdu : A_REMPLIR
