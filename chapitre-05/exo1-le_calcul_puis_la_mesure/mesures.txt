@@ -1,0 +1,5 @@
+image : icone.png, calcul : A_REMPLIR, mesure : A_REMPLIR, fichier : A_REMPLIR
+image : capture.png, calcul : A_REMPLIR, mesure : A_REMPLIR, fichier : A_REMPLIR
+image : dessin.png, calcul : A_REMPLIR, mesure : A_REMPLIR, fichier : A_REMPLIR
+image : photo1.jpg, calcul : A_REMPLIR, mesure : A_REMPLIR, fichier : A_REMPLIR
+image : photo2.jpg, calcul : A_REMPLIR, mesure : A_REMPLIR, fichier : A_REMPLIR

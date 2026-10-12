@@ -1,0 +1,8 @@
+Ce que la taille du fichier ne dit pas :
+[Comparer une ligne de mesures.txt : par exemple photo1.jpg fait X octets sur le disque mais Y octets en memoire, soit Z fois plus. Le fichier est compresse, l'image en memoire ne l'est pas : elle prend largeur x hauteur x octets par pixel, quel que soit le poids du fichier. Le dessin PNG a aplats compresse encore plus, donc son rapport est encore plus grand.]
+
+L'ecart entre calcul et mesure :
+[Donner l'ecart en octets et en pourcentage pour une ou deux images. Expliquer : le systeme alloue la memoire par pages (souvent 4096 octets), donc la mesure est arrondie vers le haut ; il y a aussi les structures internes de l'image et du decodeur, et le gestionnaire des taches n'est pas precis a l'octet pres. Pour une petite icone l'ecart relatif est grand, pour une grosse photo il devient petit.]
+
+Avant d'ouvrir cinquante photos :
+[Faire le calcul avant : une photo de 6000 x 4000 en RGBA fait 6000 x 4000 x 4 = 96 000 000 octets, donc 50 photos font environ 4,8 Go. Donc on ne les garde pas toutes en memoire : on les charge une par une, ou on les reduit avec Resize pour des miniatures, et on laisse chaque image sortir de sa portee quand on n'en a plus besoin.]
