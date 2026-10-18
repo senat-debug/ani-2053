@@ -1,0 +1,15 @@
+Tâche :
+Additionner mille entiers d'un tableau (rempli au démarrage avec i % 1000) dans une variable locale, puis ranger la somme dans la case de la tâche. Les deux cents sommes sont additionnées et affichées après chaque mesure (99900000 attendu), pour que le compilateur ne puisse pas retirer le calcul en Release. Les deux versions appellent la même fonction Tache.
+
+Réserve : 0.153 ms, 0.456 ms, 0.207 ms
+
+Fils : 7.010 ms, 7.751 ms, 8.553 ms
+
+Ouvriers :
+4 (GetNumWorkers, réserve créée avec le nombre de cœurs logiques). Mesures prises en Release (-O2, NDEBUG) sur une machine Linux à 4 cœurs logiques ; elles changent d'une machine à l'autre.
+
+Tâche longue : 1.078 ms (réserve), 9.105 ms (fils)
+
+Pourquoi :
+Avec la réserve, les quatre ouvriers existent déjà : soumettre une tâche revient à la poser dans une file que le premier ouvrier libre vient prendre. Avec les fils, chaque tâche paie la création d'un fil par le système (pile, structures du noyau, ordonnancement) puis sa destruction au Join. Ici ce coût fixe, d'environ 35 à 40 µs par fil, multiplié par deux cents, fait presque tout le temps mesuré : additionner mille entiers prend moins d'une microseconde. D'où un écart de 17 à 45 fois selon la mesure.
+Avec la tâche cent fois plus longue, le calcul lui-même devient visible : la réserve passe d'environ 0.2 ms à environ 1 ms, parce que ses quatre ouvriers ont maintenant vraiment du travail. Le coût de création des fils, lui, ne change pas, et le calcul s'ajoute à une dépense qui était déjà là. L'écart tombe à environ 8 fois : plus la tâche est longue, plus la création d'un fil devient petite à côté du travail, et moins la réserve fait gagner. Pour du travail court et nombreux, la réserve s'impose ; pour quelques tâches longues, créer un fil coûte peu en proportion.
