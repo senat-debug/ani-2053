@@ -1,0 +1,18 @@
+Types complets : 18 octets
+144 bits, mesurés par BytesWritten() et BitsWritten() : 8 bits pour l'état (WriteU8), 8 pour le numéro, 32 pour x, 32 pour y, 32 pour l'angle (WriteF32), 32 pour la santé (WriteI32). Le serveur a reçu un message de 18 octets.
+
+Quantifié : 8 octets
+60 bits : 1 bit pour l'état (WriteBool), 8 pour le numéro, 17 pour x et 17 pour y (100 000 pas d'un centimètre entre -500 et +500 m), 10 pour l'angle (720 demi-degrés), 7 pour la santé (101 valeurs). Les 4 bits qui restent dans le dernier octet sont du bourrage. Le serveur a reçu un message de 8 octets : 2,25 fois moins que le paquet complet.
+
+Écart maximal :
+État envoyé : en vie, numéro 42, x 123,4567 m, y -87,6543 m, angle 271,3°, santé 73. Écarts mesurés entre la valeur envoyée et la valeur relue par le serveur dans le paquet quantifié (le paquet complet, lui, rend les valeurs au bit près) :
+- en vie : 0
+- numéro : 0
+- x : 0,0033 m (relu 123,46)
+- y : 0,0043 m (relu -87,65)
+- angle : 0,2° (relu 271,5)
+- santé : 0
+Sur ces valeurs, aucun écart ne dépasse la moitié du pas choisi. En balayant toute la plage hors réseau (pas de 1 mm et de 0,001°), le pire écart est 0,0051 m pour la position et 0,25° pour l'angle, avec une exception : le kit ne code jamais le dernier pas, si bien que +500 m est relu 499,99 m (écart 1 cm) et 360° est relu 359,5° (écart 0,5°).
+
+Ce que le joueur verrait :
+Rien. Un écart de 5 mm sur un personnage de 1,80 m vu à 5 m représente environ un pixel sur un écran en 1080p, moins dès qu'il s'éloigne ; il disparaît dans l'interpolation entre deux états reçus, qui déplace déjà le personnage d'environ 2 cm par image quand il marche (1,4 m/s à 60 images par seconde). Un quart de degré sur l'orientation décale le bout d'un bras de quelques millimètres, ce qui ne se voit pas non plus. L'angle se remarquerait seulement s'il servait à viser loin : 0,25° fait environ 44 cm d'erreur à 100 m, d'où l'intérêt de transmettre la visée d'un tireur plus finement que l'orientation du corps. L'état, le numéro et la santé, eux, sont des entiers transmis sans perte. Le cas de 360° relu 359,5° est sans effet visible, puisque 360° et 0° désignent la même direction.
