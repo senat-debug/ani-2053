@@ -1,0 +1,17 @@
+Serveur :
+Serveur a l'ecoute sur le port 7777, identifiant local 1
+Pair connecte : 16354650526217802763
+Message de 16354650526217802763 : Bonjour du client
+
+Client :
+Client vers 127.0.0.1:7777, identifiant local 16354650526217802763
+Pair connecte : 1
+Message envoye a 1 : Bonjour du client
+
+Pair :
+Cote serveur, onPeerConnected recoit 16354650526217802763 : c'est le client. Le client tire cet identifiant au hasard (NkPeerId::Generate) en appelant Connect et l'envoie dans son SYN ; le serveur le reprend tel quel, d'ou le meme nombre dans la console du client, sur la ligne « identifiant local ». C'est aussi le champ from du message recu : le serveur sait qui lui parle.
+Cote client, onPeerConnected recoit 1 : c'est le serveur. Un serveur NKNetwork porte toujours l'identifiant 1 (NkPeerId::Server), qu'il renvoie dans son SYN-ACK. Le client s'en sert comme destinataire de SendTo.
+Chacun voit donc l'identifiant de l'autre, jamais le sien. L'identifiant du client change a chaque lancement, celui du serveur reste 1.
+
+Machines :
+Une seule machine, Linux, les deux programmes lances dans deux processus, le client vers 127.0.0.1, port 7777. NKNetwork et ses dependances ont ete compiles depuis les sources du depot public (en-tetes identiques a ceux du kit Canvas du 13 octobre 2026), pas lies au kit Windows lui-meme. Ce n'est donc pas l'essai entre deux machines du reseau local demande.
