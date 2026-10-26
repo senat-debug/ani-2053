@@ -1,0 +1,22 @@
+Module : NKMedia
+
+D'après le projet :
+Il lit et écrit des fichiers médias sur le disque (NKFileSystem, NKStream) et décode ou encode des images (NKImage) : de la vidéo vue comme une suite d'images.
+Il compte le temps (NKTime) pour dater chaque image, connaître une durée ou tenir une cadence, et décode sans doute sur un fil à part (NKThreading).
+Il tire NKFont, donc il sait écrire du texte dans une image : des sous-titres ou une incrustation.
+Il n'affiche rien et n'écoute rien : ni fenêtre, ni GPU, ni dessin (pas de NKWindow, NKGlad, NKCanvas), ni clavier ou souris (pas de NKEvent). Il rend des pixels en mémoire.
+Il ne joue aucun son (c'est NKAudio qui dépend de lui, pas l'inverse) et ne lit aucun flux réseau (pas de NKNetwork) : seulement des fichiers locaux.
+
+Après l'en-tête :
+include/NKMedia/NkMediaProbe.h (kit Canvas du 22 octobre 2026). Il n'y a pas de NKMedia.h : à la racine du module ne se trouvent que NkMediaProbe.h et NkMediaDemux.h, et ce dernier inclut le premier. NkMediaProbe.h se présente comme la « brique 1 » du module.
+Il reconnaît le conteneur d'un fichier (MP4/MOV, WebM/Matroska, WAV, OGG, MP3, FLAC) à ses octets magiques (DetectContainer), puis en lit l'en-tête pour lister ses pistes (Probe sur un buffer, ProbeFile sur un fichier lu via NKFileSystem). Chaque piste NkMediaTrack dit si elle est audio ou vidéo, son codec en texte ("aac", "opus", "vp8", "h264", "pcm"...), la fréquence et le nombre de canaux pour l'audio, la largeur et la hauteur pour la vidéo, et garde le CodecPrivate brut, utile au décodage Opus. Les parseurs ISOBMFF et EBML sont écrits à la main, sans STL, dans nkentseu::media.
+L'en-tête n'inclut que NKCore et NKContainers : aucune image, aucune police, aucun temps. Il ne décode rien et ne lit aucun paquet ; c'est NkMediaDemux.h qui extrait les paquets encodés, et seulement ceux de la première piste audio.
+
+Mes erreurs :
+J'ai lu un module d'images et de vidéo. L'en-tête principal parle d'abord de conteneurs et d'audio, et le dossier contient des décodeurs AAC, Opus (SILK et CELT) et AMR, un écrivain WAV. « Il ne joue aucun son » reste vrai, mais j'en avais conclu qu'il ne touchait pas au son, et c'est faux : NKMedia décode le son, NKAudio le joue. C'est même ce qui explique que NKAudio dépende de lui.
+NKFont ne sert pas à des sous-titres. Il n'est inclus qu'une fois, par Pdf/NkPdfFont.h, pour lire les polices embarquées des PDF. Le module lit des PDF et rend une page en bitmap, et sous Document/ il extrait le texte d'EPUB, de sources LaTeX, d'archives ZIP et de pages web. Aucune dépendance ne laissait deviner un lecteur de documents.
+NKImage n'est pas seulement là pour les images d'une vidéo. NkVideoReader décode bien le MJPEG par NKImage, mais NkEpub.h tire NKImage pour NkDeflate, la décompression du ZIP rangée dans NKImage parce qu'elle a été écrite pour le PNG ; le commentaire reconnaît qu'elle serait mieux dans NKStream. Une dépendance peut venir d'un code mal rangé, pas d'une fonction du module.
+Le fil à part existe, mais pour encoder, pas pour décoder : NkVideoRecorder pousse les images dans une file qu'un fil de fond encode en H.264, et c'est le seul en-tête qui inclut NKThreading et NKTime (NkChrono, pour la cadence d'encodage). L'horodatage des paquets, lui, est un simple entier lu dans le conteneur, sans NKTime.
+« Il n'affiche rien » est juste au sens du lien, mais NkVideoRecorder est fait pour capturer le rendu de NKCanvas et le son de NKAudio. Il reçoit leurs pixels et leurs échantillons sans dépendre d'eux : la liste des dépendances ne montre pas qui un module sert.
+« Pas de réseau » est vrai pour le code, faux pour le sujet : NkAspirateur parcourt un site web (liens, robots.txt, délai entre requêtes) et NkPageWeb en extrait l'article. Le module ne télécharge rien lui-même ; il reçoit le HTML déjà récupéré.
+Enfin les dépendances ne disaient rien de la taille : 94 en-têtes et des codecs vidéo H.264, HEVC, AV1, VP8, VP9, Theora, MPEG-1 et 2. Les commentaires eux-mêmes ont du retard : NkMediaProbe.h dit « ne décode pas encore » et NkVideoReader.h annonce H.264 « à venir », alors que Codecs/Video/H264/NkH264Decoder.h est dans le kit.
