@@ -1,0 +1,47 @@
+Le commentaire :
+Fichier include/NKCanvas/Renderer/Core/NkDrawable.h, ligne 40, sur la déclaration anticipée de la cible de rendu :
+
+    class NkRenderTarget;  // NkRenderTarget.h — pas encore livre (etape A.5)
+
+Le commentaire affirme que l'en-tête NkRenderTarget.h n'existe pas encore : l'étape A.5 qui doit le livrer n'aurait pas eu lieu, et la déclaration anticipée tiendrait lieu de classe en attendant.
+
+Le code :
+L'en-tête existe dans le kit, et il définit la classe au complet. Fichier include/NKCanvas/Renderer/Targets/NkRenderTarget.h, lignes 36 à 50 puis 109 à 113 :
+
+    #include "NKCanvas/Renderer/Core/NkRenderer2DTypes.h"
+    #include "NKCanvas/Renderer/Core/NkRenderStates.h"
+    #include "NKCanvas/Renderer/Core/NkDrawable.h"
+    ...
+    class NkRenderTarget {
+        public:
+            virtual ~NkRenderTarget() noexcept = default;
+    ...
+            void Draw(const NkDrawable &drawable, const NkRenderStates &states = NkRenderStates::Default()) {
+                drawable.Draw(*this, states);
+            }
+
+Deux classes concrètes en héritent déjà, chacune dans son propre en-tête :
+
+    include/NKCanvas/Renderer/Targets/NkRenderWindow.h:49:   class NkRenderWindow : public NkRenderTarget {
+    include/NKCanvas/Renderer/Targets/NkRenderTexture.h:41:  class NkRenderTexture : public NkRenderTarget {
+
+L'étape A.5 n'est donc pas « à venir » : elle a eu lieu. Le fichier qui n'aurait « pas encore » été livré inclut lui-même NkDrawable.h (ligne 38), c'est-à-dire le fichier qui annonce son absence.
+
+La preuve :
+Depuis le dossier du kit décompressé (Kits/Canvas/), trois commandes suffisent :
+
+    find include -name "NkRenderTarget.h"
+    -> include/NKCanvas/Renderer/Targets/NkRenderTarget.h
+
+    grep -rn "class NkRenderTarget" include
+    -> NkShape.h:37, NkRenderer2D.h:55, NkDrawable.h:40 et NkSprite.h:34 ne sont que des déclarations anticipées (elles finissent par « ; »)
+    -> include/NKCanvas/Renderer/Targets/NkRenderTarget.h:48: class NkRenderTarget {   (la seule définition)
+
+    grep -rn "public NkRenderTarget" include
+    -> NkRenderWindow.h:49 et NkRenderTexture.h:41
+
+On peut aussi chercher qui inclut l'en-tête : grep -rn "include.*NkRenderTarget.h" include renvoie NkRenderWindow.h:34 et NkRenderTexture.h:31. La classe n'est pas seulement déclarée : la bibliothèque livrée avec le kit contient son code (strings lib/Release-Windows/NKCanvas.lib | grep NkRenderTarget trouve des dizaines de symboles).
+
+Ce qu'il dit de son auteur :
+Celui qui a écrit cette ligne avait raison au moment où il l'a écrite. Il travaillait par étapes numérotées (A.2, A.5, A.8) et posait NkDrawable avant la cible qui devait la dessiner ; la déclaration anticipée était alors le seul moyen de nommer NkRenderTarget, et le commentaire servait de pense-bête pour lui comme pour le lecteur. Il a cru que ce pense-bête serait revu quand l'étape serait faite. La ligne d'à côté montre qu'il y a pensé une fois : « NkRenderStates.h — etat compose (etape A.2, fait) » a bien reçu son « fait ». Celle de A.5 ne l'a pas reçu, sans doute parce que l'étape s'est passée dans un autre dossier (Targets/) et que rien n'oblige à rouvrir Core/NkDrawable.h quand on livre NkRenderTarget.h : le compilateur ne lit pas les commentaires, la déclaration anticipée reste valide, et rien ne casse.
+Ce que cela dit de l'endroit : NkDrawable.h est un en-tête de transition, écrit pendant une migration en plusieurs étapes, et ses commentaires décrivent le plan tel qu'il était au début, pas l'état du code. Le même bloc de documentation annonce encore la migration de NkSprite et NkText pour l'étape A.8, et la phrase de NkRenderTarget.h qui l'attend (« En attendant la migration NkSprite/NkText (etape A.8) ») mérite la même vérification. Dans ce dossier, une mention d'étape se vérifie dans le code avant d'être crue.
