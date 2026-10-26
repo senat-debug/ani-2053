@@ -1,0 +1,30 @@
+Appel suivi : target.Clear(couleur), écrit dans OnRender d'une NkCanvasApp.
+Source : en-têtes du kit Canvas du 22 octobre 2026, dossier include/.
+
+Les sauts :
+1. include/NKCanvas/App/NkCanvasApp.h, NkCanvasApp::OnRender(NkRenderWindow &target), l. 262. Ce qui s'y décide : le type statique de target est NkRenderWindow, pas la classe abstraite NkRenderTarget. La coquille passe *mTarget (Target(), l. 218-219 ; membre NkRenderWindow *mTarget, l. 390).
+2. include/NKCanvas/Renderer/Targets/NkRenderTarget.h, NkRenderTarget::Clear(const NkColor2D &color = NkColor2D::Black), l. 55. Ce qui s'y décide : le contrat. Clear est une virtuelle pure (« Vide le framebuffer avec la couleur indiquée ») ; le corps exécuté dépend de la classe concrète, et la couleur par défaut est le noir.
+3. include/NKCanvas/Renderer/Targets/NkRenderWindow.h, NkRenderWindow::Clear(const NkColor2D &color) override, l. 77. Ce qui s'y décide : c'est la version concrète appelée ici. L'en-tête ne donne que la déclaration ; la classe possède un contexte (NkIGraphicsContext *mContext, l. 182), un renderer (NkUniquePtr<NkIRenderer2D> mRenderer, l. 183) et un drapeau mFrameOpen « true entre Begin() et End() interne » (l. 185).
+4. Recherche du corps de NkRenderWindow::Clear dans tout include/ (recherche de « NkRenderWindow:: », fichiers .h et .inl). Ce qui s'y décide : aucun corps. On ne trouve que trois commentaires qui en parlent : include/NKCanvas/Core/NkIGraphicsContext.h l. 39-46, include/NKCanvas/Backend/Metal/NkMetalContext.h l. 53-55, include/NKCanvas/Backend/Metal/NkMetalRenderer2D.h l. 43-45. Le corps est dans lib/ (NKCanvas.lib, Debug-Windows et Release-Windows), le kit ne contient aucun .cpp.
+
+Arrêt :
+NkRenderWindow::Clear(const NkColor2D &color), déclarée override dans include/NKCanvas/Renderer/Targets/NkRenderWindow.h, l. 77.
+
+Pourquoi là :
+Le signal est une bibliothèque déjà compilée. La méthode est déclarée override sans corps à côté ; je l'ai cherché dans tout include/ avant de conclure, et il n'y est pas : il est compilé dans lib/NKCanvas.lib, que je ne peux pas lire. Au-delà, je ne lirais plus de code, seulement des commentaires. Et même si j'avais le corps, le saut suivant probable (mRenderer->Clear) tombe sur une autre virtuelle pure, NkIRenderer2D::Clear (include/NKCanvas/Renderer/Core/NkIRenderer2D.h, l. 73), un embranchement entre les backends : un deuxième fond juste derrière le premier.
+
+Ce que je sais maintenant :
+Vu dans les en-têtes :
+- Dans OnRender, target est une NkRenderWindow& ; l'appel part donc vers NkRenderWindow::Clear (déclarée l. 77), à travers la virtuelle pure NkRenderTarget::Clear.
+- NkRenderWindow tient un NkIGraphicsContext*, un NkIRenderer2D (via NkUniquePtr) et un drapeau mFrameOpen.
+- NkIRenderer2D::Clear est une virtuelle pure (NkIRenderer2D.h l. 73), à côté de Begin(), End() et IsInFrame() (l. 59-66).
+- NkIGraphicsContext::SetClearColor(r, g, b, a) existe, vide par défaut (NkIGraphicsContext.h l. 45-46). Vulkan et Metal la redéfinissent (NkVulkanContext.h l. 23, NkMetalContext.h l. 55) ; NkOpenGLRenderer2D redéfinit Clear (NkOpenGLRenderer2D.h l. 30).
+- NkCanvasAppConfig a un champ clearColor = {18, 18, 24, 255} (NkCanvasApp.h l. 140).
+
+Supposé sans l'avoir vu (le corps est compilé) :
+- Que NkRenderWindow::Clear passe la couleur au contexte par SetClearColor avant d'ouvrir l'image. Je ne le sais que par des commentaires (NkIGraphicsContext.h l. 43 : « NkRenderWindow::Clear l'appelle » ; NkMetalContext.h l. 53 : « l'appelle avant Begin »). Un commentaire n'est pas du code : il peut avoir vieilli.
+- Que Clear ouvre l'image (Begin) quand mFrameOpen est faux. Je le déduis seulement du nom et du commentaire du drapeau.
+- Que Clear finit par mRenderer->Clear(color), donc dans un backend : OpenGL et DirectX effacent dans leur renderer, Vulkan, Metal et le logiciel dans le BeginFrame du contexte, selon les commentaires de NkIGraphicsContext.h l. 39-44.
+- Que mTarget est une NkRenderWindow et non une classe dérivée (NkRenderWindow n'est pas final) ; la création de mTarget est dans le .cpp de NkCanvasApp.
+- Que la coquille ne fait pas elle-même un Clear avec clearColor avant d'appeler OnRender ; si elle le fait, le Clear de l'utilisateur repeint par-dessus. Question ouverte.
+Pour le vérifier : un point d'arrêt sur NkRenderWindow::Clear avec les symboles de la bibliothèque Debug, ou la pile d'appels depuis OnRender.
