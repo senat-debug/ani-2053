@@ -1,0 +1,81 @@
+Kit Canvas du 22 octobre 2026, recherche lancée depuis le dossier du kit.
+
+Recherche :
+La commande, lancée depuis Kits/Canvas/
+    grep -rn NkOpenGLRenderer2D include/
+et pour la liste des fichiers seule
+    grep -rl NkOpenGLRenderer2D include/
+(Sous Windows sans grep : findstr /s /n NkOpenGLRenderer2D include\*.h)
+
+Résultat : 5 fichiers, 13 lignes.
+    include/NKCanvas/Backend/OpenGL/NkOpenGLRenderer2D.h   (4 lignes, le dorsal lui-même)
+    include/NKCanvas/Renderer/Core/NkIRenderer2D.h         (1 ligne)
+    include/NKCanvas/Renderer/Core/NkRenderer2D.h          (1 ligne)
+    include/NKCanvas/Renderer/Resources/NkTextureBackend.h (6 lignes)
+    include/NKGui/Core/NkGuiDrawListRaster.h               (1 ligne)
+Dans le dossier du dorsal (Backend/OpenGL/), seul NkOpenGLRenderer2D.h porte
+le nom ; les trois autres fichiers du dossier (contextes) ne le citent pas.
+Aucun fichier du kit n'inclut NkOpenGLRenderer2D.h : la recherche de
+« NkOpenGLRenderer2D.h" » ne trouve que sa propre ligne 3.
+
+Hors de son dossier :
+4 fichiers, 9 lignes. Toutes sont des commentaires, aucune n'est du code.
+
+NKCanvas/Renderer/Core/NkIRenderer2D.h:15
+//   Backends/OpenGL/NkOpenGLRenderer2D
+COMMENTAIRE : liste des mises en œuvre dans l'en-tête de l'interface.
+
+NKCanvas/Renderer/Core/NkRenderer2D.h:19
+//   NkSoftwareRenderer2D / NkOpenGLRenderer2D / NkVulkanRenderer2D / NkDX11Renderer2D / NkDX12Renderer2D
+COMMENTAIRE : schéma de la façade NkRenderer2D, « implemente par ».
+
+NKCanvas/Renderer/Resources/NkTextureBackend.h:22
+// EXEMPLE D'ENREGISTREMENT (OpenGL, en fin de NkOpenGLRenderer2D::Initialize)
+NKCanvas/Renderer/Resources/NkTextureBackend.h:24
+//       &NkOpenGLRenderer2D::CreateGLTexture,
+NKCanvas/Renderer/Resources/NkTextureBackend.h:25
+//       &NkOpenGLRenderer2D::UpdateGLTexture,
+NKCanvas/Renderer/Resources/NkTextureBackend.h:26
+//       &NkOpenGLRenderer2D::DeleteGLTexture,
+NKCanvas/Renderer/Resources/NkTextureBackend.h:27
+//       &NkOpenGLRenderer2D::SetGLTextureFilter,
+NKCanvas/Renderer/Resources/NkTextureBackend.h:28
+//       &NkOpenGLRenderer2D::SetGLTextureWrap,
+COMMENTAIRE (les 6 lignes) : un exemple d'enregistrement écrit en commentaire,
+qui décrit ce que fait le .cpp du dorsal. Ces cinq fonctions ne sont pas
+déclarées dans NkOpenGLRenderer2D.h : l'exemple renvoie à du code compilé.
+
+NKGui/Core/NkGuiDrawListRaster.h:35
+//      OpenGL (`NkOpenGLRenderer2D::SetBlendMode`) : Screen ONE /
+COMMENTAIRE : renvoi de documentation vers les facteurs de mélange du
+dorsal OpenGL. Il est d'ailleurs approximatif : NkOpenGLRenderer2D.h ne
+déclare pas SetBlendMode (elle est écrite dans NkBatchRenderer2D) ; le
+dorsal a ApplyBlendMode (NkOpenGLRenderer2D.h:69).
+
+Et NkRenderer2DFactory.h ne nomme aucun dorsal : ni NkOpenGLRenderer2D, ni
+OpenGL, Vulkan, DX11, DX12, Metal ou Software. Il n'inclut que
+NkIRenderer2D.h et NKPlatform/NkCGXDetect.h, rend un NkIRenderer2D*
+(Create, l. 36) et ne reçoit qu'une valeur d'énumération
+(IsApiSupported(NkGraphicsApi api), l. 47).
+
+Conclusion :
+Hors de son dossier, le nom NkOpenGLRenderer2D n'apparaît dans aucune ligne
+de code du kit : 9 lignes sur 9 sont des commentaires, que le compilateur ne
+voit pas. Aucun autre en-tête n'inclut la classe, et l'appelant ne la
+manipule qu'à travers NkIRenderer2D*. Le choix du dorsal ne s'est donc pas
+répandu dans le programme : la fabrique fait son travail.
+
+La fabrique elle-même ne le nomme pas non plus dans son en-tête : elle ne
+promet qu'une interface et prend une NkGraphicsApi. Le seul endroit qui
+connaît la classe concrète est son corps, NkRenderer2DFactory.cpp, compilé
+dans la bibliothèque et absent du kit (le nom se retrouve bien dans
+lib/*/NKCanvas.lib, pas dans un en-tête). C'est exactement ce qu'on attend
+d'une fabrique : un seul endroit, caché derrière une entrée qui ne dit rien
+des classes concrètes.
+
+Les commentaires ne cassent pas la fabrique, mais ils ont un coût : ce sont
+des renvois de documentation qui ne sont pas vérifiés par le compilateur.
+Deux le montrent déjà : la liste de NkRenderer2D.h:19 oublie Metal, sixième
+dorsal du kit, et NkGuiDrawListRaster.h:35 cite une méthode SetBlendMode
+que NkOpenGLRenderer2D ne déclare pas. Renommer ou ajouter un dorsal ne
+fera échouer aucune compilation, mais laissera ces lignes fausses.
