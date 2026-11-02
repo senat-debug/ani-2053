@@ -1,0 +1,107 @@
+Kit Canvas du 22 octobre 2026, include/. Les chemins sont donnés depuis include/.
+Le kit n'a que les en-têtes : quand le code qui fait le travail est dans un .cpp
+compilé dans lib/, c'est dit, et l'en-tête qui le montre est cité à la place.
+
+Stratégie :
+NKCanvas/Renderer/Core/NkIRenderer2D.h:46
+class NkIRenderer2D 
+Une seule interface de rendu 2D, faite de virtuelles pures (Clear l. 73, Begin
+l. 59...). Les mises en œuvre sont interchangeables : OpenGL, Vulkan, DX11, DX12,
+Metal, logiciel, par exemple
+NKCanvas/Backend/OpenGL/NkOpenGLRenderer2D.h:13
+class NkOpenGLRenderer2D final : public NkBatchRenderer2D 
+Le choix se fait à l'exécution par le champ api du NkContextDesc. L'exemple
+desc.api = ... n'apparaît dans les en-têtes qu'en commentaire
+(NkRenderWindow.h:25).
+
+Fabrique :
+NKCanvas/Renderer/Core/NkRenderer2DFactory.h:36
+static NkIRenderer2D *Create(NkIGraphicsContext *ctx);
+L'appelant reçoit un NkIRenderer2D* sans connaître la classe concrète. Le switch
+qui choisit le backend est dans NkRenderer2DFactory.cpp, compilé dans la
+bibliothèque : l'en-tête ne montre que l'entrée. Il montre aussi pourquoi le
+choix reste en un seul endroit : la fabrique alloue, donc elle libère
+(Destroy, l. 41, « ne JAMAIS faire `delete` sur le pointeur », l. 40).
+
+Façade :
+NKCanvas/Renderer/Targets/NkRenderWindow.h:49
+class NkRenderWindow : public NkRenderTarget {
+Derrière Clear / Draw / Display, elle crée et tient le contexte graphique (via
+NkContextFactory) et le renderer (via NkRenderer2DFactory), membres l. 181-184.
+Le sous-système reste accessible par GetRenderer() (NkRenderTarget.h:138).
+Les définitions de Clear et Display sont dans NkRenderWindow.cpp, compilé.
+
+Patron de méthode :
+NKCanvas/App/NkCanvasApp.h:371
+int Execute(const NkEntryState &state);
+Le squelette : privé et non virtuel, la classe dérivée ne peut pas le changer.
+Elle remplit seulement les crochets virtuels à corps vide, par exemple
+NKCanvas/App/NkCanvasApp.h:262
+virtual void OnRender(NkRenderWindow &target) {
+L'ordre lui-même (OnUpdate, Clear, OnRender, Display) est dans NkCanvasApp.cpp,
+compilé : l'en-tête montre la boucle privée et les crochets, pas l'enchaînement.
+
+Observateur :
+NKEvent/NkEventSystem.h:315
+void AddEventCallback(Callback &&callback, NkWindowId windowId = NK_INVALID_WINDOW_ID) {
+Chaque partie intéressée s'abonne à un type d'événement ; celui qui annonce
+(DispatchToCallbacks, l. 610) ne connaît que la liste, pas les abonnés.
+Côté routage typé :
+NKEvent/NkEventDispatcher.h:121
+template <typename T> bool Dispatch(NkEventHandler<T> handler) {
+Le gestionnaire qui rend true consomme l'événement (MarkHandled, l. 133), et
+les suivants ne le voient plus.
+
+Singleton :
+NKEvent/NkEventDispatcher.h:417
+inline NkInputQuery NkInput;
+Un seul objet, atteignable partout après inclusion. Nuance : rien n'empêche de
+créer un second NkInputQuery, c'est une instance globale plutôt qu'un singleton
+verrouillé. Le commentaire l. 407 le dit « stateless », mais il garde deux
+pointeurs (mEventSystem, mGamepadSystem, l. 399-400) posés par des setters.
+
+Adaptateur :
+NKCanvas/UI/NkGuiCanvasBackend.h:213
+void Submit(const nkentseu::nkgui::NkGuiDrawList &dl, nkentseu::uint32 fbW, nkentseu::uint32 fbH) {
+Reçoit une draw-list NKGui et la traduit en appels NkIRenderer2D, l'interface
+attendue par NKCanvas. L'en-tête le dit l. 7-8 : « le cœur NKGui reste
+render-agnostique ; ce pont traduit ses draw-lists en appels NkIRenderer2D ».
+Ce fichier est header-only : ici le code est bien dans le kit.
+
+Composite :
+NKCanvas/Renderer/Core/NkDrawable.h:51
+virtual void Draw(NkRenderTarget &target, const NkRenderStates &states) const = 0;
+Un objet seul et un objet qui en dessine d'autres ont la même méthode, et
+l'état reçu (dont la transformation du parent) se compose de niveau en niveau.
+SIGNALÉ : dans le kit, la ligne qui fait la composition n'est montrée qu'en
+commentaire, ici :
+NKCanvas/Renderer/Core/NkTransformable.h:29
+//           states.transform *= GetTransform();
+(et NkDrawable.h:24). La vraie est dans NkSprite.cpp, compilé. Aucun en-tête
+du kit ne déclare de groupe qui tiendrait une liste d'enfants : le composite
+est l'interface commune, le groupe est à écrire par l'application.
+
+Commande :
+Absente du code du kit. Elle manque là où l'on voudrait défaire une action :
+NKGui réserve déjà les touches d'annulation,
+NKGui/Core/NkGuiTypes.h:98
+// Raccourcis éditeur (Phase 4) : G, K, /, [, ], Z/Y (undo/redo).
+mais aucun en-tête ne déclare d'objet commande avec son inverse, ni de pile
+d'annulation pour les garder.
+Ce qui s'en approche le plus dans le code :
+NKGui/Doc/NkGuiCommandes.h:82
+struct NkGuiCommandeDite 
+Une action devient un objet (fonction l. 86, contexte, libellé, raccourci) que
+l'on garde dans une table et que l'on relance depuis un menu ou un raccourci.
+Il lui manque l'annulation : NkActionFn (NkGuiCoquille.h:56) est un simple
+void (*)(void *), sans opération inverse.
+SIGNALÉ : le motif complet, avec annuler et refaire, n'est montré qu'en
+commentaire, dans l'exemple 6 de la documentation de NkFunction :
+NKContainers/Functional/NkFuntionV2.h:1494
+ * struct Command 
+(execute et undo l. 1495-1496, CommandHistory l. 1505). Ce fichier n'est
+inclus par aucun autre en-tête du kit. NkStack.h en montre une version plus
+pauvre, elle aussi en commentaire (exemple 5) :
+NKContainers/Adapters/NkStack.h:525
+ *     nkentseu::NkStack<const char*> mUndoStack;  // Actions pour undo
+Elle empile des noms d'actions, pas des commandes qui savent se défaire.
