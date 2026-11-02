@@ -1,0 +1,98 @@
+Kit Canvas du 22 octobre 2026, include/NKCanvas/. Comptes faits sur les en-têtes du kit.
+
+Virtuelles pures :
+30 virtuelles pures dans la classe NkIRenderer2D.
+15 virtuelles ont un corps (plus le destructeur virtuel, « = default », compté à part).
+
+Méthode : NkIRenderer2D va de la ligne 46 à la ligne 286 de
+Renderer/Core/NkIRenderer2D.h. J'ai relu ce bloc déclaration par déclaration,
+en recollant celles qui tiennent sur plusieurs lignes (DrawLine 187-188,
+DrawRect 190-191, DrawCircle 195-197, DrawFilledCircle 199-200, DrawTriangle
+202-203, DrawFilledTriangle 205-206, DrawVertices 236-237), et j'ai compté
+celles qui finissent par « ) = 0; » ou « ) const = 0; ».
+Les 30 : Initialize, Shutdown, IsValid, Begin, End, IsInFrame, Flush, Clear,
+SetView, GetView, GetDefaultView, SetViewport, GetViewport, SetBlendMode,
+GetBlendMode, Draw(NkSprite), Draw(NkText), DrawPoint, DrawLine, DrawRect,
+DrawFilledRect, DrawCircle, DrawFilledCircle, DrawTriangle, DrawFilledTriangle,
+DrawVertices, GetStats, ResetStats, MapPixelToCoords, MapCoordsToPixel.
+Les 15 avec corps : ResetView, IsViewCustom, SetResizePolicy, GetResizePolicy,
+GetDesignSize, OnResize, SetClip, PopClip, ResetClip, HasClip, GetClip,
+Draw(NkIDrawable2D), DrawRectOutline, DrawCircleOutline, DrawTexturedRect.
+
+Piège évité : une recherche de « = 0; » sur le fichier entier rend 32 lignes.
+La ligne 40 est la virtuelle pure d'une autre classe, NkIDrawable2D
+(« virtual void Draw(class NkIRenderer2D &renderer) const = 0; »), et la
+ligne 253 est une boucle dans le corps de DrawTexturedRect
+(« for (int i = 0; i < 4; ++i) { »). Les fins de
+déclaration sur plusieurs lignes, elles, ne portent « = 0; » qu'une fois.
+
+Seconde vérification : le mot « virtual » apparaît 46 fois entre les lignes
+46 et 286. 46 = 30 pures + 15 avec corps + 1 destructeur : les deux comptes
+se tiennent. Et en partant de l'autre côté : NkBatchRenderer2D redéfinit 26
+de ces 30 pures (voir plus bas) et en laisse 4 ; 26 + 4 = 30.
+
+Dorsaux :
+6 dorsaux de rendu 2D dans NKCanvas/Backend/, un fichier *Renderer2D.h chacun.
+- DirectX/NkDX11Renderer2D.h   (NkDX11Renderer2D)
+- DirectX/NkDX12Renderer2D.h   (NkDX12Renderer2D)
+- Metal/NkMetalRenderer2D.h    (NkMetalRenderer2D)
+- OpenGL/NkOpenGLRenderer2D.h  (NkOpenGLRenderer2D)
+- Software/NkSoftwareRenderer2D.h (NkSoftwareRenderer2D)
+- Vulkan/NkVulkanRenderer2D.h  (NkVulkanRenderer2D)
+
+Méthode : j'ai listé les fichiers des cinq dossiers de Backend/ et gardé ceux
+qui déclarent une classe *Renderer2D ; les autres fichiers sont des contextes
+graphiques, des contextes de calcul ou des données internes.
+Les commentaires en tête de NkIRenderer2D.h (l. 13-18) et de
+NkBatchRenderer2D.h (l. 11) n'en citent que cinq : ils ont été écrits avant
+Metal. Metal est bien dans le kit, mais son en-tête est entouré de
+#if defined(NKENTSEU_PLATFORM_MACOS) || defined(NKENTSEU_PLATFORM_IOS).
+Sous Windows, il est inclus et ne déclare rien. DX11 et DX12 sont de même
+réservés à Windows (#if defined(NKENTSEU_PLATFORM_WINDOWS)).
+
+Ce que chacun écrit :
+Aucun dorsal n'hérite directement de NkIRenderer2D. Les six héritent de
+NkBatchRenderer2D (« final : public NkBatchRenderer2D »), qui hérite de
+NkIRenderer2D. NkBatchRenderer2D redéfinit 26 des 30 virtuelles pures
+(tout le dessin, la vue, le viewport, le mélange, les statistiques) et en
+laisse 4 : Initialize, Shutdown, IsValid, Clear. Il ajoute 2 virtuelles pures
+à lui, SubmitBatches et UploadProjection (NkBatchRenderer2D.h:167-170), et
+3 crochets à corps vide : BeginBackend, EndBackend, ApplyScissor.
+Un dorsal doit donc écrire 6 méthodes au minimum.
+
+Compte des méthodes redéfinies (« override ») par chaque en-tête,
+destructeur non compté.
+- NkDX11Renderer2D     : mère NkBatchRenderer2D, 8 méthodes
+  (les 6 obligatoires + BeginBackend, EndBackend)
+- NkDX12Renderer2D     : mère NkBatchRenderer2D, 8 méthodes (les mêmes)
+- NkMetalRenderer2D    : mère NkBatchRenderer2D, 9 méthodes (8 + ApplyScissor)
+- NkOpenGLRenderer2D   : mère NkBatchRenderer2D, 9 méthodes (8 + ApplyScissor)
+- NkSoftwareRenderer2D : mère NkBatchRenderer2D, 9 méthodes
+  (8 + Draw(const NkSprite &), qu'il redessine lui-même)
+- NkVulkanRenderer2D   : mère NkBatchRenderer2D, 8 méthodes dans la version
+  réelle (l. 24, sous #if NKENTSEU_HAS_VULKAN_HEADERS).
+  L'en-tête porte une seconde classe du même nom après #else (l. 156) : une
+  version vide pour les machines sans en-têtes Vulkan, qui ne redéfinit que
+  les 6 obligatoires, chacune avec un corps qui ne fait rien. Le compte
+  retenu est celui de la version réelle, 8 ; la version de repli dit à elle
+  seule le minimum, 6.
+Aucun dorsal ne redéfinit une des 26 méthodes déjà écrites par
+NkBatchRenderer2D, sauf le logiciel pour Draw(NkSprite).
+
+Le coût :
+Ajouter un dorsal ne coûte pas 30 méthodes. D'après les comptes : 6 méthodes
+obligatoires (4 héritées de l'interface, 2 de NkBatchRenderer2D), et 8 à 9 en
+pratique, puisque les six dorsaux existants en écrivent 8 ou 9. Le reste,
+26 virtuelles pures sur 30, est écrit une fois pour toutes dans
+NkBatchRenderer2D. C'est cette classe intermédiaire, un patron de méthode
+posé entre l'interface et les dorsaux, qui fait baisser le coût : sans elle,
+chaque dorsal en devrait 30.
+
+Ce que les comptes ne disent pas : le travail est dans le corps de ces
+méthodes, surtout SubmitBatches et Initialize, c'est-à-dire la partie GPU.
+Il est dans des .cpp compilés que le kit ne fournit pas ; je ne peux donc pas
+le mesurer d'ici. Et un dorsal ne vient pas seul : chaque dossier de
+Backend/ apporte aussi son contexte graphique (une classe qui hérite de
+NkIGraphicsContext, 14 virtuelles pures) et un contexte de calcul
+(NkIComputeContext). Il faut enfin ajouter le cas dans NkRenderer2DFactory
+(Create et IsApiSupported), dont le switch est lui aussi dans un .cpp.
