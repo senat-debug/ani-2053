@@ -1,0 +1,78 @@
+Tester la version directe :
+
+La fonction a tester :
+
+    void SauterDirect(Personnage &perso) {
+        if (perso.auSol && NkInput.IsKeyDown(NkKey::NK_SPACE)) { ... saute ... }
+    }
+
+Elle a deux entrees : perso.auSol, qu'on choisit, et l'etat de la barre
+d'espace, qu'elle va chercher elle-meme dans NkInput. Cas par cas :
+
+- en l'air, espace relachee : rien a faire, c'est l'etat par defaut d'un
+  clavier que personne ne touche.
+- au sol, espace relachee : pareil.
+- en l'air, espace enfoncee : il faut que NkInput reponde "enfoncee".
+- au sol, espace enfoncee (le seul cas ou il saute) : pareil.
+
+Pour les deux derniers, il faut changer ce que voit NkInput, et il n'y a que
+deux portes :
+1. Une vraie fenetre, au premier plan, et quelqu'un (ou un programme qui
+   simule le clavier par le systeme) qui tient la barre d'espace pendant
+   qu'une image passe. Il faut un ecran, le focus, et du temps : le test n'est
+   ni automatique ni reproductible, et il ne tourne pas sur une machine sans
+   affichage.
+2. Remplacer le systeme d'evenements derriere le singleton :
+   NkInput.SetEventSystem(&autre) (NkEventDispatcher.h, "ne pas appeler
+   manuellement sauf pour tests unitaires"). NkEventSystem n'a pas de
+   methodes virtuelles : pas de faux objet, il faut un vrai NkEventSystem,
+   l'initialiser, ecrire dans son GetInputState() la touche enfoncee, puis
+   remettre l'ancien pointeur a la fin. Pendant ce temps, TOUT le programme
+   voit ce faux clavier, deux tests ne peuvent pas tourner en parallele, et un
+   test qui s'arrete avant la remise en place laisse NkInput pointer sur un
+   objet detruit.
+
+Ce que ca coute : pour verifier une regle d'une ligne (au sol ET espace), il
+faut monter et demonter un etat global du moteur, ou une session interactive.
+
+
+La version testable :
+
+    bool DoitSauter(bool auSol, bool espaceEnfoncee) {
+        return auSol && espaceEnfoncee;
+    }
+    void Sauter(Personnage &perso, bool espaceEnfoncee) {
+        if (DoitSauter(perso.auSol, espaceEnfoncee)) { ... saute ... }
+    }
+
+Ce qui a change : la lecture de NkInput est sortie de la fonction. L'etat de
+la barre d'espace devient un parametre booleen ; c'est l'appelant, la boucle
+du jeu, qui lit le clavier une fois par image et le passe :
+Sauter(mJoueur, NkInput.IsKeyDown(NkKey::NK_SPACE)). La regle est la meme
+(au sol ET espace enfoncee, sinon rien), et la decision est isolee dans
+DoitSauter, sans personnage ni singleton. Les quatre cas se posent
+directement, sans fenetre ni etat global, et dans n'importe quel ordre.
+SauterDirect est gardee telle quelle dans banc.cpp pour la comparaison.
+
+
+Le banc :
+
+A COMPLETER : coller ici banc.log et le code de sortie (echo %ERRORLEVEL%
+ou $LASTEXITCODE), en Debug puis en Release. Le banc n'a pas pu etre lie ni
+lance sur la machine qui a ecrit ce fichier (kit Windows uniquement).
+
+
+Sans fenetre :
+
+A COMPLETER avec ce que banc.log montre pour la version directe.
+
+Ce que le code du kit permet d'expliquer : sous Windows, le point d'entree
+(NKWindow/EntryPoints/NkWindowsDesktop.h:76) appelle NkEntryRuntimeInit
+avant nkmain (l. 84) ; c'est elle qui branche NkInput sur le systeme
+d'evenements du moteur. Le singleton est donc deja branche quand
+OnCommandLine tourne. Mais aucune fenetre n'existe encore : aucun message
+clavier ou souris n'a pu etre recu ni depile, et l'etat qu'il expose est
+l'etat initial. On s'attend donc a "espace relachee" et a SauterDirect qui
+rend "reste" dans les deux cas, meme si l'on tient la barre d'espace au
+lancement. La version directe ne se trompe pas : elle repond a une autre
+question, "la touche est-elle enfoncee dans une fenetre qui n'existe pas ?".
