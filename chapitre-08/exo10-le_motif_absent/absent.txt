@@ -1,0 +1,142 @@
+L'endroit :
+Kit Canvas du 22 octobre 2026, include/ (chemins donnés depuis include/).
+Le même mécanisme y est écrit trois fois : pour chaque sorte de ressource GPU,
+une table de rappels, rangée dans une variable globale, que chaque renderer
+remplit à la fin de son Initialize().
+
+NKCanvas/Renderer/Resources/NkTextureBackend.h:42      struct NkTextureBackend
+NKCanvas/Renderer/Resources/NkTextureBackend.h:55      void NkTextureSetBackend(const NkTextureBackend &)
+NKCanvas/Renderer/Resources/NkShaderBackend.h:50       struct NkShaderBackend
+NKCanvas/Renderer/Resources/NkShaderBackend.h:66       void NkShaderSetBackend(const NkShaderBackend &)
+NKCanvas/Renderer/Resources/NkShaderBackend.h:73       void NkShaderInstallUnsupportedBackend(const char *)
+NKCanvas/Renderer/Targets/NkRenderTextureBackend.h:26  struct NkRenderTextureBackend
+NKCanvas/Renderer/Targets/NkRenderTextureBackend.h:36  void NkRenderTextureSetBackend(const NkRenderTextureBackend &)
+NKCanvas/Renderer/Targets/NkRenderTextureBackend.h:41  void NkRenderTextureInstallUnsupportedBackend(const char *)
+
+Les en-têtes le disent eux-mêmes : « Pattern identique a NkTextureBackend »
+(NkShaderBackend.h:5), « Meme pattern que NkTextureBackend/NkShaderBackend »
+(NkRenderTextureBackend.h:5). Les NKCanvas.lib du kit montrent les trois
+globales : gTextureBackend dans NkTexture.obj, gShaderBackend dans
+NkShader.obj, gRTBackend dans NkRenderTexture.obj.
+
+Le remplissage se répète aussi, dorsal par dorsal, une fois par table.
+Rappels statiques déclarés dans les en-têtes :
+  NKCanvas/Backend/OpenGL/NkOpenGLRenderer2D.h:33-37 (texture), 41-49 (shader),
+    52-56 (render texture)
+  NKCanvas/Backend/Vulkan/NkVulkanRenderer2D.h:51-55 (texture), 143-147 (RT)
+  NKCanvas/Backend/DirectX/NkDX11Renderer2D.h:55-59 (texture), 65-69 (RT)
+  NKCanvas/Backend/DirectX/NkDX12Renderer2D.h:142-146 (texture), 151-155 (RT)
+  NKCanvas/Backend/Software/NkSoftwareRenderer2D.h:54-58 (RT ; sa table de
+    texture n'est pas dans l'en-tête)
+Dans lib/Release-Windows/NKCanvas.lib, chacun des cinq .obj de renderer
+(OpenGL, Vulkan, DX11, DX12, Software) appelle NkTextureSetBackend,
+NkRenderTextureSetBackend, et NkShaderSetBackend (OpenGL) ou
+NkShaderInstallUnsupportedBackend (les quatre autres) : quinze
+enregistrements pour cinq dorsaux.
+
+Ce qui se répète, c'est un choix : quel dorsal fabrique la ressource. Il est
+fait trois fois, séparément, et globalement, alors que chaque ressource reçoit
+déjà son renderer :
+  NKCanvas/Renderer/Resources/NkTexture.h:53     bool Create(NkIRenderer2D &renderer, ...)
+  NKCanvas/Renderer/Resources/NkShader.h:136     bool Compile(NkIRenderer2D &renderer)
+  NKCanvas/Renderer/Targets/NkRenderTexture.h:55 bool Create(NkIRenderer2D &renderer, ...)
+Le renderer passé ne choisit rien : « NkTexture.cpp utilise ensuite la table
+active [...] sans dependre du backend » (NkTextureBackend.h:7-8), « Un
+Initialize successif ecrase » (NkTextureBackend.h:52), et NkShader.h:135
+exige seulement que « le renderer [ait] appele NkShaderSetBackend() a son
+Init ». NkRenderTexture garde même le renderer (mRenderer, NkRenderTexture.h:121)
+sans qu'il serve au choix. Une quatrième occurrence, plus petite :
+NkTexture::GetWhiteTexture(NkIRenderer2D &) (NkTexture.h:121) rend une seule
+texture statique (sWhiteTexture dans NkTexture.obj), quel que soit le renderer.
+
+Comparées ligne à ligne, les trois copies ne disent déjà plus la même chose :
+- la texture n'a pas de InstallUnsupportedBackend : un dorsal qui ne
+  l'enregistre pas laisse en place la table du précédent ;
+- la table des render textures porte un état, Bind et Unbind
+  (NkRenderTextureBackend.h:29-30), pas seulement de la création ;
+- les listes de support ont dérivé : NkRenderTextureBackend.h:39 et
+  NkRenderTexture.h:21 donnent Software, Vulkan, DX11 et DX12 pour des stubs,
+  alors que leurs en-têtes déclarent les rappels RT (lignes ci-dessus) et que
+  leurs .obj appellent NkRenderTextureSetBackend ; plus aucun .obj Windows
+  n'appelle NkRenderTextureInstallUnsupportedBackend.
+Et ce n'est pas cosmétique : NkContextFactory.h:7-8 annonce « Plusieurs
+contextes par application : entièrement supporté ». Avec deux renderers (une
+fenêtre OpenGL et une Software, par exemple), le dernier initialisé gagne les
+trois tables, et une texture créée avec le premier passe par les rappels du
+second. Ceci est déduit des contrats des en-têtes et des symboles du .lib ;
+les .cpp ne sont pas dans le kit et je ne l'ai pas exécuté.
+
+Le motif :
+Fabrique abstraite. La famille de produits, c'est texture, shader et render
+texture d'une même API ; il y a déjà un objet par API pour la fabriquer, le
+NkIRenderer2D concret, et il est déjà passé à chaque Create. Il suffit d'en
+faire la fabrique. NkIRenderer2D (NKCanvas/Renderer/Core/NkIRenderer2D.h:46)
+reçoit trois accesseurs :
+    virtual const NkTextureBackend &TextureBackend() const;
+    virtual const NkShaderBackend &ShaderBackend() const;
+    virtual const NkRenderTextureBackend &RenderTextureBackend() const;
+Leur corps par défaut rend une table « non supportée » (Create rend 0) : cela
+remplace les deux Install...UnsupportedBackend et donne enfin ce stub à la
+texture. Chaque renderer les redéfinit avec une table statique faite des
+rappels qu'il a déjà. NkTexture, NkShader et NkRenderTexture retiennent le
+renderer reçu à Create/Compile et passent par ses tables ; GetWhiteTexture
+devient une texture par renderer. Les trois structs existantes ne changent
+pas : ce sont les interfaces des produits, aucune classe nouvelle.
+
+Pourquoi celui-là et pas un autre : la Stratégie est déjà là, chaque table en
+est une ; ce qui manque, c'est de choisir les trois ensemble et par renderer.
+Le Singleton est ce qu'on a aujourd'hui (une table globale par sorte), c'est
+lui le problème. Et ce n'est pas un motif pour un seul cas : trois tables,
+cinq dorsaux enregistrés, quinze appels.
+Je laisse hors du changement les registres internes des dorsaux (gVkTexRegistry,
+NkVulkanRenderer2D.h:50 ; gDX12Registry, NkDX12Renderer2D.h:137) : ils restent
+partagés entre deux renderers de la même API, ce qui ne mélange pas les
+familles. On y reviendra si deux renderers Vulkan doivent coexister.
+
+Le coût :
+En-têtes à changer, 13 :
+  1. NKCanvas/Renderer/Core/NkIRenderer2D.h : les trois virtuelles, avec
+     déclarations anticipées des trois structs.
+  2-4. NkTextureBackend.h, NkShaderBackend.h, NkRenderTextureBackend.h :
+     retirer les trois Set...Backend et les deux Install...UnsupportedBackend
+     (ou les garder une version, marqués dépréciés).
+  5. NKCanvas/Renderer/Resources/NkTexture.h : un membre NkIRenderer2D *,
+     repris par le déplacement (l. 49-50) ; GetWhiteTexture par renderer.
+  6. NKCanvas/Renderer/Resources/NkShader.h : un membre NkIRenderer2D *, pour
+     que les Set* et Use après Compile passent par la bonne table.
+  7. NKCanvas/Renderer/Targets/NkRenderTexture.h : mRenderer existe déjà ;
+     corriger les commentaires l. 19-24 et 53-54.
+  8-13. les six en-têtes de renderer : OpenGL, Vulkan, DX11, DX12, Software
+     (les trois redéfinitions) et Metal (NkMetalRenderer2D.h, qui ne déclare
+     aucun rappel et garde les corps par défaut).
+Sources, hors du kit (noms tirés des .obj) : NkTexture.cpp, NkShader.cpp,
+NkRenderTexture.cpp (les trois globales disparaissent) et les cinq .cpp de
+renderer (les quinze enregistrements deviennent trois redéfinitions chacun),
+plus le source Metal, absent du .lib Windows. Soit 13 en-têtes et 9 sources.
+
+Ce qui risque de casser :
+- L'ABI. NkIRenderer2D gagne trois entrées de vtable, NkTexture et NkShader
+  changent de taille : les .lib du kit et tout programme qui les utilise
+  doivent être reconstruits ensemble. Ce n'est pas un changement à glisser
+  dans un kit correctif comme celui du 22 octobre.
+- L'ordre de destruction. Une texture gardera un pointeur vers son renderer ;
+  aujourd'hui, une texture détruite après le Shutdown du renderer est prévue
+  pour tomber sur une table vide et ne rien faire (NkTextureBackend.h:52-54,
+  qui ne le promet qu'« idealement »). Demain, ce serait
+  un pointeur pendant. Exemple concret : le destructeur de NkGuiCanvasBackend
+  (NKCanvas/UI/NkGuiCanvasBackend.h:28-36) libère ses NkTexture ; il doit
+  passer avant la destruction du renderer. Il faut écrire la règle (le
+  renderer survit à ses ressources) et la vérifier dans NkCanvasApp et
+  NkCanvasGuiApp.
+- Le code qui appelle NkTextureSetBackend lui-même : il ne se liera plus.
+  Dans les en-têtes du kit, seul l'exemple en commentaire de
+  NkTextureBackend.h:22-30 le fait ; aucun de nos exercices.
+- Le shader actif. Use est appelé par NkRenderTarget avant un lot
+  (NkShaderBackend.h:18) : il devra prendre la table du renderer de la cible,
+  pas celle du shader, et vérifier qu'elles sont les mêmes.
+Ce qui ne doit pas changer : les signatures publiques Create/Compile restent
+les mêmes, donc NkGuiCanvasBackend, NkUICanvasBackend et nos programmes
+(composite.cpp crée sa texture par NkTexture::Create) compilent sans
+retouche. Pour le vérifier : relancer composite.cpp en OpenGL et en Software
+(même image attendue qu'avant), puis un test neuf à deux fenêtres sur deux
+API, chacune avec sa texture, qui échoue aujourd'hui et doit passer après.
