@@ -1,0 +1,146 @@
+Publiques :
+24 méthodes publiques dans NKCanvas/Renderer/Targets/NkRenderTarget.h (kit
+Canvas du 22 octobre 2026, lignes 48 à 155 ; toute la classe est sous public:).
+
+Règle de compte : chaque déclaration compte pour une, surcharges à part et
+versions const à part, virtuelle ou non, pure ou avec un corps par défaut. Le
+destructeur n'est pas compté (ce n'est pas un service offert à l'appelant).
+Comptées par nom, toutes surcharges ensemble, cela fait 19 noms : les quatre
+Draw font un nom, les deux GetRenderer un, les deux GetRenderer2D un.
+
+     1  Clear(const NkColor2D &)                                   virtuelle pure
+     2  Display()                                                  virtuelle pure
+     3  SetView(const NkView2D &)                                  virtuelle pure
+     4  GetView() const                                            virtuelle pure
+     5  GetDefaultView() const                                     virtuelle pure
+     6  ResetView()                                                virtuelle, corps par défaut
+     7  IsViewCustom() const                                       virtuelle, corps par défaut
+     8  SetViewport(NkRect2i)                                      virtuelle pure
+     9  GetViewport() const                                        virtuelle pure
+    10  SetResizePolicy(NkResizePolicy, NkVec2f)                   virtuelle, corps par défaut
+    11  GetResizePolicy() const                                    virtuelle, corps par défaut
+    12  GetDesignSize() const                                      virtuelle, corps par défaut
+    13  GetSize() const                                            virtuelle pure
+    14  Draw(const NkDrawable &, const NkRenderStates &)           non virtuelle
+    15  Draw(const NkVertexArray &, const NkRenderStates &)        non virtuelle
+    16  Draw(const NkVertex *, uint32, NkPrimitiveType, states)    virtuelle pure
+    17  Draw(const NkIDrawable2D &)                                non virtuelle
+    18  MapPixelToCoords(NkVec2i) const                            virtuelle pure
+    19  MapCoordsToPixel(NkVec2f) const                            virtuelle pure
+    20  GetRenderer()                                              virtuelle pure
+    21  GetRenderer() const                                        virtuelle pure
+    22  GetRenderer2D()                                            virtuelle pure
+    23  GetRenderer2D() const                                      virtuelle pure
+    24  Capture(const char *) const                                virtuelle, corps par défaut
+
+Trois des 24 ne sont pas virtuelles (14, 15, 17) : un compte des seules
+lignes virtual en trouverait 21.
+
+Utiles :
+7 sur 24 (6 noms sur 19). Classement fait sur les programmes du sprint
+(crochets.cpp, banc.cpp, composite.cpp) et sur la boucle de NkCanvasApp::Execute
+(NkCanvasApp.cpp du dépôt public ; les symboles et les messages [nkcanvasapp]
+des NKCanvas.lib du kit sont les mêmes).
+
+Par la boucle de NkCanvasApp, pour tous les programmes qui ouvrent une fenêtre :
+     1  Clear        mTarget->Clear(mConfig.clearColor), chaque image
+     2  Display      mTarget->Display(), chaque image
+    13  GetSize      RefreshLayout, chaque image, pour détecter un
+                     redimensionnement et remplir OnLayout
+    24  Capture      après Display, seulement avec --capture=... ; composite.txt
+                     demande ce lancement (--capture=capture.png
+                     --capture-frame=10)
+
+Directement par nos programmes (composite.cpp) :
+    14  Draw(const NkDrawable &)   target.Draw(mExterne) dans OnRender ; le
+                     Noeud n'est qu'un NkDrawable, c'est donc cette surcharge
+    16  Draw(vertices bruts)       appelée par NkSprite::Draw (NkSprite.cpp,
+                     deux triangles NK_TRIANGLES), atteinte par notre sprite au
+                     bout du composite
+    20  GetRenderer()              Target().GetRenderer() dans OnInit, pour
+                     NkTexture::Create, qui demande un NkIRenderer2D &
+
+crochets.cpp n'appelle rien sur la cible : il n'en touche que par la boucle.
+banc.cpp tourne dans OnCommandLine, avant toute fenêtre : aucune méthode.
+
+Les autres :
+17 sur 24 (13 noms sur 19). Aucun de nos programmes ni la boucle ne les appelle.
+
+Caméra (vue) : déplacer, zoomer ou tourner ce que l'on regarde du monde.
+     3  SetView           poser une caméra (défilement, zoom d'une carte)
+     4  GetView           relire la caméra pour la modifier et la reposer
+     5  GetDefaultView    la vue qui couvre la cible pixel pour pixel
+     6  ResetView         revenir à cette vue et reprendre le suivi automatique
+                          du redimensionnement, que SetView suspend
+     7  IsViewCustom      savoir si ce suivi est suspendu
+
+Sous-région : dessiner dans une partie de la fenêtre seulement.
+     8  SetViewport       écran partagé à deux joueurs, mini-carte
+     9  GetViewport       relire la sous-région courante
+
+Redimensionnement : ce que devient l'image quand la fenêtre change de taille.
+    10  SetResizePolicy   suivre, étirer, bandes noires, rogner, échelle
+                          entière (pixel art)
+    11  GetResizePolicy   relire la politique
+    12  GetDesignSize     la résolution de référence des ajustements
+
+Dessin :
+    15  Draw(const NkVertexArray &)   raccourci pour une géométrie libre
+                                      rangée dans un NkVertexArray
+    17  Draw(const NkIDrawable2D &)   compatibilité avec l'ancienne interface
+                                      de dessin
+
+Repères :
+    18  MapPixelToCoords  convertir un clic de souris (pixels) en coordonnées
+                          du monde, une fois la vue déplacée
+    19  MapCoordsToPixel  l'inverse : placer un repère d'interface au-dessus
+                          d'un objet du monde
+
+Accès sous la façade (son commentaire dit « avancé / interop backends ») :
+    21  GetRenderer() const        le même accès que 20, en lecture seule
+    22  GetRenderer2D()            atteindre NkRenderer2D, une autre façade,
+                                   par exemple pour un code écrit contre elle
+    23  GetRenderer2D() const      la même, en lecture seule
+
+Provisoire, d'après son propre commentaire : une seule, la 17,
+Draw(const NkIDrawable2D &). Ligne 127-128 : « Sera retire quand NkSprite/NkText
+auront migre vers NkDrawable (etape A.8) », et le bloc DUAL-INTERFACE de
+l'en-tête (lignes 29-33) la présente « en attendant la migration ». Or la
+condition est remplie dans ce même kit : NkSprite.h dit que NkSprite et NkText
+dérivent maintenant de NkDrawable seulement, et aucune classe des en-têtes du
+kit n'hérite plus de NkIDrawable2D. La méthode provisoire a survécu à sa
+raison d'être.
+Les commentaires des 16 autres ne parlent pas de retrait. Capture (24), utile
+plus haut, a un corps par défaut « non supporte (false) » : ce n'est pas un
+provisoire, c'est un service que chaque cible fournit ou non. Le « stub pour
+l'instant » de la ligne 13 vise la classe NkRenderTexture, pas une méthode de
+NkRenderTarget.
+
+Le rapport :
+7 utiles pour 17 autres sur 24, soit 29 % contre 71 %, environ 2,4 méthodes
+inutilisées pour une utilisée. Par nom : 6 pour 13 sur 19 (32 %).
+
+La promesse tient pour le cas courant. Clear, Draw et Display suffisent, et la
+boucle de NkCanvasApp appelle déjà Clear et Display : un programme du sprint
+n'écrit en pratique qu'un appel, target.Draw(...). Rien des 17 autres n'est
+nécessaire pour dessiner une image, et 13 d'entre elles (vue, sous-région,
+redimensionnement, repères, NkVertexArray) répondent à des besoins réels et
+indépendants que nos programmes n'ont simplement pas encore eus : leur
+présence ne gêne pas celui qui ne s'en sert pas.
+
+Elle commence pourtant à fuir, et les chiffres le montrent :
+- 4 des 24 (20 à 23) ne simplifient rien : elles rendent ce que la façade devait
+  cacher, le renderer bas niveau et une seconde façade. Et l'une est utile :
+  composite.cpp a dû passer par Target().GetRenderer() pour créer une texture.
+  Sur 7 méthodes utiles, 1 contourne la façade, parce que NkTexture::Create
+  demande le NkIRenderer2D et non la cible.
+- 4 surcharges de Draw pour un seul geste, dont une provisoire sans plus aucun
+  client dans le kit. Retirer la 17 ramènerait le compte à 23, sans rien casser
+  de ce que nos programmes utilisent.
+
+Verdict : la façade tient sa promesse (3 appels pour le cas courant, 7 sur 24
+pour nos programmes réels), mais elle n'en est plus loin : 29 % d'utile, une
+méthode provisoire périmée, et une ouverture vers le renderer dont un
+programme ordinaire a déjà besoin. Ce qui la fera grossir, c'est précisément
+cette ouverture : tant que les ressources se créent sur le NkIRenderer2D, la
+cible devra continuer à le rendre.
