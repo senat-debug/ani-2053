@@ -1,0 +1,59 @@
+Les crochets :
+
+NKCanvas/App/NkCanvasApp.h du kit Canvas du 22 octobre 2026 declare douze
+crochets virtuels, tous dans la section protected (l. 241-324). Chacun a une
+implementation par defaut : six ne font rien, six rendent une valeur.
+
+l. 249  NkOptional<int> OnCommandLine(const NkVector<NkString> &args)
+        "Appele AVANT toute creation de fenetre." Rendre une valeur arrete le
+        programme avec ce code de sortie. Defaut : vide, on continue.
+l. 255  bool OnInit()
+        "Fenetre et cible de rendu existent." Rendre false = abandon.
+        Defaut : true.
+l. 259  void OnUpdate(float32 deltaTime)
+        Pas de commentaire. Defaut : ne fait rien.
+l. 262  void OnRender(NkRenderWindow &target)
+        Pas de commentaire. Defaut : ne fait rien.
+l. 265  void OnShutdown()
+        Pas de commentaire. Defaut : ne fait rien.
+l. 270  bool OnEvent(const NkEvent &event)
+        "Le flux brut. true = consomme, la chaine s'arrete ici." Rendre false
+        laisse la coquille faire son travail type. Defaut : false.
+l. 277  bool OnPointer(const NkPointer &pointer)
+        "Geste unifie souris + doigt. Derive de OnEvent, jamais d'un second
+        abonnement." Defaut : false.
+l. 282  bool OnKeyPress(const NkKeyPressEvent &event)
+        Pas de commentaire. Defaut : false.
+l. 291  void OnLayout(const NkLayoutInfo &layout)
+        Taille, zone sure et densite ont change. "Appele AU MOINS une fois
+        avant la premiere trame." Defaut : ne fait rien.
+l. 314  bool OnCloseRequested()
+        DEMANDE de fermeture (croix, Alt+F4, geste systeme). Rendre false
+        REFUSE la fermeture. Defaut : true, on ferme.
+l. 321  void OnPause()
+        "L'application part en arriere-plan ou perd le focus." C'est la qu'on
+        coupe le son. Defaut : ne fait rien.
+l. 323  void OnResume()
+        Pas de commentaire propre (le pendant de OnPause). Defaut : ne fait rien.
+
+Ne sont pas des crochets : Run, Config, Window, Target, Layout, Time, Quit,
+IsSuspended (services publics, non virtuels), ni GarderEcranAllume,
+EpinglerEcran et RaisonDeLaPause (protected mais non virtuels).
+
+
+L'ordre mesure :
+
+A COMPLETER : coller ici le contenu de crochets.log, produit par l'executable
+Debug lance seul, sans toucher a la fenetre. Le journal n'a pas pu etre
+produit sur la machine qui a ecrit ce fichier (pas d'outils Windows pour lier
+contre les .lib du kit, ni pour lancer l'executable).
+
+
+Les surprises :
+
+A COMPLETER a partir du journal mesure.
+
+
+Debug et Release :
+
+A COMPLETER : comparer le crochets.log de Debug a celui de Release.
