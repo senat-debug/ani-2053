@@ -1,0 +1,61 @@
+Situations :
+
+Les fichiers et les lignes sont ceux des en-tetes du kit Canvas du 22 octobre 2026.
+
+1. Le joueur maintient la fleche droite : PULL. C'est un etat qui dure : a
+   chaque image on demande si la touche est encore enfoncee, et on avance de
+   vitesse * dt. Outil : NkInput.IsKeyDown(NkKey::NK_RIGHT),
+   NKEvent/NkEventDispatcher.h:273 (instance NkInput, NkEventDispatcher.h:417).
+   Pas l'evenement NkKeyRepeatEvent (NKEvent/NkKeyboardEvent.h:1034) : c'est
+   l'auto-repetition du systeme, avec un delai avant la premiere repetition et
+   une cadence qui n'est pas celle des images.
+
+2. Il appuie sur Echap : PUSH. L'appui arrive a un instant et ne doit agir
+   qu'une fois (ouvrir ou fermer la pause). Outil : NkKeyPressEvent,
+   NKEvent/NkKeyboardEvent.h:972, recu dans le crochet OnKeyPress,
+   NKCanvas/App/NkCanvasApp.h:282. Pas IsKeyDown : il reste vrai sur toutes
+   les images ou la touche est tenue.
+
+3. On veut la position de la souris : PULL. Ce n'est pas un instant, c'est
+   une valeur qui existe a tout moment, meme quand la souris ne bouge pas.
+   Outil : NkInput.MouseX() et NkInput.MouseY(),
+   NKEvent/NkEventDispatcher.h:308 et :310. Pas NkMouseMoveEvent
+   (NKEvent/NkMouseEvent.h:247) : il en arrive plusieurs par image, dont on ne
+   garde que le dernier, et aucun quand la souris est immobile.
+
+4. Un fichier est depose sur la fenetre : PUSH. Le depot se produit a un
+   instant, avec ses chemins, et il n'y a rien a demander entre deux depots.
+   Outil : NkDropFileEvent, NKEvent/NkDropEvent.h:373, lu dans OnEvent
+   (NKCanvas/App/NkCanvasApp.h:270).
+
+5. La fenetre est redimensionnee : PUSH. La taille change a un instant ; on
+   recalcule la mise en page a ce moment-la et pas a chaque image. Outil : le
+   crochet OnLayout, NKCanvas/App/NkCanvasApp.h:291, que la coquille appelle
+   apres chaque changement de taille (et au moins une fois avant la premiere
+   image), avec la zone sure et la densite en plus. L'evenement brut existe
+   aussi (NkWindowResizeEvent, NKEvent/NkWindowEvent.h:453), mais avec
+   NkCanvasApp, OnLayout est deja derive de lui et porte plus d'information.
+
+6. Le joueur double-clique : PUSH. Le double-clic est un instant, reconnu par
+   le systeme a partir de deux clics rapproches ; aucun etat ne dit "est en
+   train de double-cliquer". Outil : NkMouseDoubleClickEvent,
+   NKEvent/NkMouseEvent.h:684, lu dans OnEvent. En PULL avec
+   IsMouseDown (NkEventDispatcher.h:350), il faudrait refaire soi-meme la
+   mesure du delai, et deux clics tombes entre deux images seraient perdus.
+
+
+Les deux bogues :
+
+Echap lu en PULL : on teste NkInput.IsKeyDown(NkKey::NK_ESCAPE) dans
+OnUpdate. Un appui humain dure une centaine de millisecondes, soit cinq a
+six images a 60 images/s : la pause s'ouvre, se ferme, se rouvre... L'action
+part plusieurs fois pour un seul appui, et l'etat final depend de la duree
+de l'appui. Avec NkKeyPressEvent, elle part une seule fois.
+
+Fleche droite lue en PUSH : on avance le joueur quand arrive NkKeyPressEvent
+pour NK_RIGHT. Il avance d'un pas a l'appui, puis s'arrete alors que la
+touche est toujours tenue. Si l'on ajoute NkKeyRepeatEvent, il repart apres
+le delai d'auto-repetition du systeme (une demi-seconde environ), a la
+cadence du clavier et non des images : il saccade, puis s'arrete de nouveau
+des que le systeme cesse de repeter (une autre touche enfoncee, par exemple).
+Avec IsKeyDown a chaque image, il avance tant que la touche est tenue.
