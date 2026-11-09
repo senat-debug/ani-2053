@@ -1,0 +1,5 @@
+methode : PixelToWorld, promesses : 3
+methode : GridSpacing, promesses : 1
+methode : HitTest, promesses : 2
+methode : Contains, promesses : 3
+methode : AddItem, promesses : 2

@@ -1,0 +1,67 @@
+Dépôt du moteur au commit e70311b, Applications/NkRef/src/NkRef/. Aucune des
+cinq méthodes n'est noexcept ; les promesses comptées viennent donc des
+paramètres const T&, du const final et de static.
+
+Vérification dans les corps :
+- PixelToWorld (NkRefView.h:33-36), 3 promesses. pixel et viewport ne sont
+  que lus dans l'expression de retour ; center et zoom aussi. Le corps
+  construit un NkVec2f neuf et n'affecte rien : const final tenu.
+- GridSpacing (NkRefView.h:76-83), 1 promesse. minPixels passe par valeur,
+  il ne promet rien. Le corps ne modifie que la locale s ; zoom n'est que lu
+  dans les deux conditions de boucle (l. 78 et 80) : const final tenu.
+- HitTest (NkRefBoard.h:111-117), 2 promesses. worldPoint est transmis tel
+  quel à Contains, qui le reçoit en const NkVec2f&. Dans une méthode const,
+  items[(usize)i] (l. 113) prend l'opérateur [] const de NkVector et rend une
+  référence const, que Contains reçoit en const NkRefItem& : ni la planche
+  ni ses items ne sont touchés.
+- Contains (NkRefBoard.h:90-94), 3 promesses. static : le corps ne nomme
+  aucun membre, il n'utilise que it et worldPoint et appelle WorldToLocal
+  (l. 83) et HalfSize (l. 78), statiques eux aussi. it et worldPoint ne sont
+  que lus, le résultat est rangé dans les locales l et h.
+- AddItem (NkRefBoard.h:65-74), 2 promesses. worldPos et sourcePath sont
+  copiés dans le nouvel item (l. 68 et 71), jamais modifiés. Pas de const
+  final, à raison : mNextId++ (l. 67) et items.PushBack (l. 72) changent la
+  planche.
+
+La promesse la plus forte :
+Le static de Contains. Un const final promet de ne pas modifier l'objet ;
+static promet qu'il n'y a pas d'objet du tout. Contains ne peut ni lire ni
+écrire items, active ou mNextId : elle n'a pas de this, et un accès à un
+membre dans son corps ne compilerait pas. Tout ce qu'elle sait de l'item
+lui arrive par it, en const NkRefItem&, donc en lecture seule. Le résultat
+ne dépend que de ses deux arguments, ce qui permet à HitTest et à
+SelectInRect de l'appeler sur n'importe quel item sans craindre d'effet de
+bord.
+
+Le message du compilateur :
+Commande : clang++ -std=c++17 -Wall avec les chemins d'inclusion
+Applications/NkRef/src et Kernel/Foundation/{NKMath,NKCore,NKPlatform,
+NKMemory,NKContainers}/src (clang 18.1.3). Sans la ligne fautive, le
+programme compile sans avertissement et affiche :
+PixelToWorld(400, 300) = (0, 0)
+GridSpacing(24) = 32
+Avec vue.PanByPixels(1.0f, 0.0f); décommentée :
+
+test_const.cpp:15:2: error: 'this' argument to member function 'PanByPixels' has type 'const nkref::NkRefView', but function is not marked const
+   15 |         vue.PanByPixels(1.0f, 0.0f);
+      |         ^~~
+/home/user/rihen-universe/nkentseu/Applications/NkRef/src/NkRef/NkRefView.h:45:9: note: 'PanByPixels' declared here
+   45 |                         void PanByPixels(float32 dxPixels, float32 dyPixels) {
+      |                              ^
+1 error generated.
+
+Le compilateur ne regarde pas le corps de PanByPixels : il voit que la
+signature n'a pas de const final et refuse de l'appeler sur une vue const.
+Le refus est mérité, le corps modifie center.x et center.y (l. 46-47).
+
+Une promesse que la signature ne dit pas :
+ZoomAtPixel(float32 factor, ...) garde le zoom entre kZoomMin et kZoomMax.
+Rien dans la signature ne le dit, factor peut valoir n'importe quoi ; c'est
+le corps qui borne z avant de l'affecter (NkRefView.h:56-61). Cette promesse
+porte plus loin qu'elle n'en a l'air : les deux boucles de GridSpacing ne
+s'arrêtent que parce que zoom reste borné, comme le notent les commentaires
+des lignes 79 et 81. Elle n'est tenue que par ZoomAtPixel et Reset : zoom est
+un membre public, et une affectation directe la contourne sans que le
+compilateur dise rien. Essayé : avec vue.zoom = -1.0f;, GridSpacing(24.0f) ne
+rend jamais la main ; avec vue.zoom = 0.0f;, elle rend inf, et PixelToWorld
+divise par zéro.
