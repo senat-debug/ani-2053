@@ -1,0 +1,23 @@
+Format juste :
+octets : 152, relu : OUI, identiques : OUI
+
+Format casse :
+octets : 152, relu : OUI, identiques : NON
+premier octet different : 40
+
+Construit avec clang 18.1.3, depuis un dossier hors du dépôt du moteur
+(commit 83b50fa) :
+  clang++ -std=c++17 -Wall $INC test_format.cpp -o test_format $LIBS
+  clang++ -std=c++17 -Wall -Icopie $INC test_format.cpp -o test_format_casse $LIBS
+avec INC = -I<moteur>/Applications/NkRef/src et
+-I<moteur>/Kernel/Foundation/{NKMath,NKCore,NKPlatform,NKMemory,NKContainers}/src,
+et LIBS = libNKContainers.a libNKMemory.a libNKCore.a libNKPlatform.a -lpthread.
+Contrairement à la vue de l'exo 4, le fichier a besoin des bibliothèques :
+NkVector appelle l'allocateur par défaut de NKMemory et NkRefItem porte un
+NkString. Faute de l'outil Jenga, ces quatre bibliothèques ont été compilées
+à la main depuis leurs src/ (-DNK_USE_STD_INITIALIZER_LIST, avec les pch/
+du dépôt en include).
+
+152 octets = 28 (en-tête, vue, options, nItems) + (36 + 7) + (36 + 5)
++ 4 (nStrokes) + (12 + 3 × 8) : deux images de 7 et 5 octets source, un
+trait de trois points.

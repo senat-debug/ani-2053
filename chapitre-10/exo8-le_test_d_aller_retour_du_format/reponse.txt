@@ -1,0 +1,39 @@
+La ligne que j'ai changée :
+Dans copie/NkRef/NkRefFile.h, ligne 121, dans la boucle des items de
+NkRefSerialize :
+    PutF32(out, it.rotationDeg);
+devient
+    PutF32(out, it.rotationDeg * 3.14159265f / 180.0f);
+C'est la confusion d'unité qu'on peut vraiment faire ici : le modèle garde
+la rotation en degrés (l'unité de NkSprite::SetRotation), et un réflexe de
+trigonométrie la passe en radians au moment d'écrire. NkRefDeserialize n'a
+pas été touché, il relit toujours des degrés. Le NkRefFile.h du dépôt est
+resté intact, la copie passe devant grâce à -Icopie.
+
+Ce que le test a vu :
+Le fichier se relit sans erreur (relu : OUI, même taille de 152 octets),
+mais la seconde écriture ne donne plus les mêmes octets, et le premier
+écart tombe à l'octet 40. C'est exactement la rotation de la première
+image : 28 octets d'en-tête, puis posX, posY et scale, 4 octets chacun.
+La planche avait 30°, la première écriture a rangé 0,5236 ; la relecture
+l'a pris pour 0,5236°, et la réécriture a rangé 0,0091. Une conversion
+appliquée à chaque passage n'est pas un point fixe, donc la deuxième
+écriture s'éloigne de la première. Le test n'a pas eu besoin de savoir que
+c'était la rotation qu'il fallait surveiller : il a montré l'endroit.
+
+Ce que le test ne voit pas :
+Il compare le format à lui-même, donc toute erreur qui retombe sur ses
+pieds au second passage lui échappe. Je l'ai vérifié en compilant une
+autre copie où la ligne 118 écrit it.pos.y à la place de it.pos.x : le
+test affiche « octets : 152, relu : OUI, identiques : OUI », alors que la
+première image, posée en x = -120, est relue en x = 45,5. Le fichier est
+faux dès la première écriture, mais faux de la même façon les deux fois.
+Il en irait de même pour une ligne qui écrirait toujours 0, ou pour
+mirrorX écrit à la place de mirrorY, ou pour une erreur faite en miroir
+dans NkRefSerialize et NkRefDeserialize (deux champs inversés des deux
+côtés). Le test ne voit pas non plus ce que le format n'écrit pas : id,
+selected, active et sourcePath sont perdus à chaque ouverture, et rien
+dans les octets ne peut le signaler. Il ne juge pas enfin les valeurs :
+un zoom nul ou négatif s'écrit et se relit à l'identique, alors qu'il
+bloque GridSpacing. Pour attraper ces cas, il faudrait comparer la planche
+relue à la planche d'origine, champ par champ.
