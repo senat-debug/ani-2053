@@ -1,0 +1,22 @@
+Camera juste :
+TEST aller_retour : OK
+TEST point_fixe : OK
+TEST bornes : OK
+TEST grille : OK
+TEST origine : OK
+
+Camera cassee :
+TEST aller_retour : OK
+TEST point_fixe : ECHEC
+TEST bornes : OK
+TEST grille : OK
+TEST origine : OK
+
+Construit avec clang 18.1.3, depuis un dossier hors du dépôt du moteur
+(commit 83b50fa), sans fenêtre :
+  clang++ -std=c++17 -Wall $INC test_camera.cpp -o test_camera
+  clang++ -std=c++17 -Wall -Icopie $INC test_camera.cpp -o test_camera_cassee
+avec INC = -I<moteur>/Applications/NkRef/src et
+-I<moteur>/Kernel/Foundation/{NKMath,NKCore,NKPlatform,NKMemory,NKContainers}/src.
+La vue n'appelle que du code inline de NKMath (NkVec2f) : l'édition de liens
+réussit sans aucune bibliothèque du moteur, il n'y en a donc pas sur la ligne.

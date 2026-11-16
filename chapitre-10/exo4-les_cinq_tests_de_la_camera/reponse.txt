@@ -1,0 +1,24 @@
+Le signe que j'ai changé :
+Dans copie/NkRef/NkRefView.h, ligne 62, la fin de ZoomAtPixel :
+    center.x = anchor.x - (pixel.x - viewport.x * 0.5f) / zoom;
+devient
+    center.x = anchor.x + (pixel.x - viewport.x * 0.5f) / zoom;
+Le zoom est toujours calculé et borné, mais le centre est recalé du mauvais
+côté sur l'axe x. Le NkRefView.h du dépôt n'a pas été touché (git status
+vide), la copie passe devant grâce à -Icopie.
+
+Le test qui est tombé :
+point_fixe. Il note le point du monde sous le pixel, zoome à ce pixel et
+relit le point : avec le signe inversé, le centre s'écarte de
+2 × (pixel.x - 400) / zoom en x, donc pour le pixel (200, 150) le point du
+monde n'est plus le même. Seul le pixel (400, 300), au centre de l'écran,
+aurait laissé passer l'erreur : le terme qui porte le signe y vaut zéro.
+C'est pour ça que le test essaie aussi des pixels loin du centre.
+
+Un test qui n'a rien vu :
+bornes. Il appelle pourtant la fonction cassée, deux fois, mais il ne
+regarde que le zoom, et le zoom est borné aux lignes 56 à 61, avant la
+ligne modifiée qui ne touche que center.x. Un zoom juste avec un centre faux
+lui suffit pour dire OK. aller_retour non plus n'a rien vu, alors que sa vue
+déplacée passe par ZoomAtPixel : WorldToPixel et PixelToWorld restent
+inverses l'une de l'autre quel que soit le centre, même mal placé.
