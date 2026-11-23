@@ -1,0 +1,66 @@
+Le protocole :
+Les nombres ont été pris sur une machine virtuelle Linux dans le nuage
+(noyau 6.18.44, 4 cœurs virtuels Intel Xeon à 2,10 GHz, 16 Go de mémoire),
+pas sur un poste de travail : refaits ailleurs, ils changeront de valeur,
+pas de forme. Moteur au commit 83b50fa0 de Rihen-Universe/Nkentseu, clang
+18.1.3, configuration Debug. L'outil Jenga n'étant pas installé, la Debug a
+été reproduite à la main avec ce que les .jenga mettent sous config:Debug :
+-O0 -g -D_DEBUG -DDEBUG -DNKENTSEU_DEBUG, plus -DNK_USE_STD_INITIALIZER_LIST
+(défini par NKContainers). Les bibliothèques NKPlatform, NKCore, NKMemory,
+NKContainers et NKTime sont compilées depuis leurs src/ avec ces options,
+le pch/ de chacune en include, puis archivées en .a. Depuis un dossier hors
+du dépôt :
+  clang++ -std=c++17 -O0 -g -D_DEBUG -DDEBUG -DNKENTSEU_DEBUG
+    -DNK_USE_STD_INITIALIZER_LIST $INC mesure.cpp -o mesure
+    libNKTime.a libNKContainers.a libNKMemory.a libNKCore.a libNKPlatform.a
+    -lpthread
+avec INC = -I<moteur>/Applications/NkRef/src -I<moteur>/Kernel/System/NKTime/src
+et -I<moteur>/Kernel/Foundation/{NKMath,NKCore,NKPlatform,NKMemory,NKContainers}/src.
+Puis ./mesure 50 trois fois et ./mesure 200 trois fois, à la suite, machine
+au repos (charge 0,18). La planche : N images de 100 sur 80 en rangées de
+dix, aucun trait, chacune avec les mêmes 1000 octets source, vue par défaut,
+thème clair, grille affichée. Chaque durée est celle de 20 appels mesurée
+d'un bloc par NkChrono, divisée par 20. Le même vecteur de sortie sert aux
+20 écritures : Clear() garde sa capacité, donc seule la première alloue.
+
+L'écart entre mes trois mesures :
+À 50 images, l'écriture va de 0,213 à 0,224 ms (0,011 ms, 5 % de la
+moyenne de 0,219) et la relecture de 0,159 à 0,161 ms (0,002 ms, 1 %). À
+200 images, l'écriture va de 0,819 à 0,909 ms (0,090 ms, 10 % de 0,857) et
+la relecture de 0,576 à 0,620 ms (0,044 ms, 7 % de 0,603). Passer de 50 à
+200 images ajoute 0,64 ms à l'écriture et 0,44 ms à la relecture : sept à
+dix fois le plus grand écart entre deux lancements. La différence entre les
+deux tailles est donc bien réelle, mais le troisième chiffre après la
+virgule ne vaut rien : à 200 images, deux lancements peuvent différer de
+0,09 ms. Un lancement d'essai fait plus tôt, avec une version précédente du
+programme, avait donné 0,321 ms à 50 images : le premier lancement sur une
+machine froide peut sortir de la fourchette, ce qui est une raison de plus
+de ne jamais se fier à un seul.
+
+Ce que coûtent quatre fois plus d'images :
+Le fichier passe de 51832 à 207232 octets, soit 4,00 fois plus (28 octets
+d'en-tête et 4 de nombre de traits, puis 1036 octets par image : 36 de
+champs et 1000 de source). L'écriture moyenne passe de 0,219 à 0,857 ms
+(3,9 fois), la relecture de 0,160 à 0,603 ms (3,8 fois). Le coût suit le
+nombre d'octets, linéairement : environ 4,1 ns par octet écrit et 2,9 ns
+par octet relu en Debug. Le léger manque par rapport à 4 tient à la part
+fixe de chaque appel, mais il reste dans l'écart entre les lancements, donc
+je ne le chiffre pas plus finement.
+
+Ce qui deviendrait limitant en premier :
+Mesuré : le temps croît avec le nombre d'octets et non avec le nombre
+d'images, à environ 4 ns par octet écrit et 3 ns par octet relu, en Debug,
+sur des sources de 1000 octets. Le code l'explique : NkRefSerialize pousse
+chaque octet source un par un avec PushBack, et le Reader de
+NkRefDeserialize les recopie un par un aussi. Supposé, et non mesuré ici :
+avec de vraies images de 2 Mo chacune, 200 images feraient 400 Mo ; en
+prolongeant la droite, l'écriture prendrait environ 1,6 s et la relecture
+1,2 s en Debug, ce qui se sent à chaque enregistrement. La mémoire suivrait
+avant le temps : la planche entière est rangée dans un seul vecteur avant
+d'aller sur le disque, ce vecteur double sa capacité en grandissant, et la
+relecture recopie chaque source dans son propre vecteur, donc on tiendrait
+deux à trois fois la taille du fichier en mémoire en même temps que les
+textures. Je n'ai mesuré ni l'écriture sur disque, ni la configuration
+Release, ni le décodage des images en textures, qui dans le vrai outil
+coûte sûrement bien plus que la relecture des octets : le temps d'écriture
+ne dit rien de l'affichage.
