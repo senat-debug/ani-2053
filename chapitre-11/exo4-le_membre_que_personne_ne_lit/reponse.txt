@@ -1,0 +1,19 @@
+Membre : NkRefItem::id
+Écrit dans : Applications/NkRef/src/NkRef/NkRefBoard.h:67
+Lu par : personne
+Verdict : inutile
+Preuve : AddItem le renvoie (NkRefBoard.h:73), mais ses deux appelants, main.cpp:646 et main.cpp:688, jettent la valeur, et NkRefFile.h ne l'enregistre ni ne le relit (après une réouverture, tous les items ont donc id = 0 sans que rien ne change). Toute l'application désigne une image par son index dans board.items, que les tableaux de textures et de sources suivent : l'identifiant n'a aucun lecteur et personne ne perd rien s'il disparaît, avec mNextId.
+
+Membre : NkRefItem::sourcePath
+Écrit dans : Applications/NkRef/src/NkRef/NkRefBoard.h:71
+Lu par : personne
+Verdict : inutile
+Preuve : ni main.cpp ni NkRefFile.h ne le lisent ; le journal « image posee : %s » de main.cpp:650 affiche la variable locale path, pas ce membre. Le .nkref a choisi d'embarquer les octets de l'image et non son chemin (en-tête de NkRefFile.h : « jamais des chemins qui meurent au premier déplacement de dossier »), donc ce chemin, que la désérialisation ne restaure même pas, est un reste de l'avant Étape 2 sans rien de promis à l'utilisateur.
+
+Membre : NkText::mOutlineThickness
+Écrit dans : Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:154
+Lu par : NkSprite.h:166 (le getter GetOutlineThickness, que personne n'appelle)
+Verdict : défaut
+Preuve : NkText::SetOutlineThickness est public et promet un contour au texte, comme NkShape, mais le code qui fabrique et dessine les glyphes (NkSprite.cpp) ne contient pas une seule fois le mot « outline », et aucun fichier du dépôt n'appelle le GetOutlineThickness du texte. Le développeur qui écrit text.SetOutlineThickness(2.f) (et SetOutlineColor, posé de la même façon en NkSprite.h:150) obtient un texte sans contour, sans erreur ni avertissement : exactement le cas de SetFlipX avant sa réparation.
+
+Ce que la lecture seule n'aurait pas montré : en lisant NkSprite.h, SetOutlineThickness, son membre et son getter forment un ensemble complet et crédible, et NkRefItem::id a l'air d'être la clé qui identifie chaque image ; rien, dans le texte d'une classe, ne dit si quelqu'un consomme la donnée. Seule la recherche de tous les lecteurs à l'échelle du dépôt, au commit 83b50fa0, le montre : pour id et sourcePath, une écriture et zéro lecture, ou une valeur renvoyée que les appelants ignorent ; pour le contour du texte, un getter jamais appelé et un rendu qui ne regarde pas le membre. La recherche distingue aussi ce que la lecture confond : une déclaration, un paramètre homonyme, un commentaire ou le membre du même nom chez NkShape ne sont pas des lectures. C'est aussi ce que montre GetFlipX aujourd'hui : le getter existait avant, mais c'est la ligne 623 de NkBatchRenderer2D.cpp, trouvée par grep, qui prouve que le miroir est enfin lu.

@@ -1,0 +1,77 @@
+commit : 83b50fa0
+
+Les miroirs :
+$ git log -1 --format=%h
+83b50fa0
+
+$ grep -rn "GetFlipX" Kernel/
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Batch/NkBatchRenderer2D.cpp:623:			if (sprite.GetFlipX()) {
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:82:				bool GetFlipX() const;
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.cpp:51:		bool NkSprite::GetFlipX() const {
+
+$ git grep -n GetFlipX -- Kernel
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Batch/NkBatchRenderer2D.cpp:623:			if (sprite.GetFlipX()) {
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.cpp:51:		bool NkSprite::GetFlipX() const {
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:82:				bool GetFlipX() const;
+
+Qui le lit : Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Batch/NkBatchRenderer2D.cpp:623 (if (sprite.GetFlipX())). Les deux autres lignes sont la déclaration (NkSprite.h:82) et la définition (NkSprite.cpp:51) du getter, pas des lectures.
+
+
+Membre 1 : NkRefItem::id
+$ git grep -nE "\bid\b" -- Applications/NkRef/src/NkRef
+Applications/NkRef/src/NkRef/NkRefBoard.h:34:			uint32 id = 0;
+Applications/NkRef/src/NkRef/NkRefBoard.h:67:				it.id = mNextId++;
+Applications/NkRef/src/NkRef/NkRefBoard.h:73:				return it.id;
+
+$ git grep -nE "\.id\b|->id\b" -- Applications/NkRef
+Applications/NkRef/src/NkRef/NkRefBoard.h:67:				it.id = mNextId++;
+Applications/NkRef/src/NkRef/NkRefBoard.h:73:				return it.id;
+
+$ git grep -n "AddItem" -- Applications/NkRef
+Applications/NkRef/src/NkRef/NkRefBoard.h:65:			uint32 AddItem(const NkVec2f &worldPos, uint32 texW, uint32 texH, const NkString &sourcePath) {
+Applications/NkRef/src/NkRef/main.cpp:646:		board.AddItem(world, w, h, NkString(path));
+Applications/NkRef/src/NkRef/main.cpp:688:		board.AddItem(world, clip.width, clip.height, NkString());
+
+$ git grep -n "mNextId" -- Applications/NkRef
+Applications/NkRef/src/NkRef/NkRefBoard.h:67:				it.id = mNextId++;
+Applications/NkRef/src/NkRef/NkRefBoard.h:368:			uint32 mNextId = 1;
+
+Bilan : écrit en NkRefBoard.h:67, renvoyé par AddItem en NkRefBoard.h:73, et les deux appels de main.cpp (646 et 688) jettent la valeur renvoyée. NkRefFile.h ne l'écrit ni ne le relit. Aucune lecture.
+
+
+Membre 2 : NkRefItem::sourcePath
+$ git grep -n "sourcePath" -- Applications/NkRef
+Applications/NkRef/src/NkRef/NkRefBoard.h:44:			NkString sourcePath; ///< vide = collée du presse-papiers (Étape 2 : octets embarqués)
+Applications/NkRef/src/NkRef/NkRefBoard.h:65:			uint32 AddItem(const NkVec2f &worldPos, uint32 texW, uint32 texH, const NkString &sourcePath) {
+Applications/NkRef/src/NkRef/NkRefBoard.h:71:				it.sourcePath = sourcePath;
+
+$ git grep -n "sourcePath" -- Applications/NkRef/src/NkRef/NkRefFile.h Applications/NkRef/src/NkRef/main.cpp
+
+Bilan : la seule écriture est NkRefBoard.h:71 ; la ligne 44 est la déclaration (et son commentaire), la ligne 65 est le paramètre homonyme d'AddItem. Rien dans main.cpp ni dans NkRefFile.h. Aucune lecture.
+
+
+Membre 3 : NkText::mOutlineThickness (Kernel/Runtime/NKCanvas)
+$ git grep -n "mOutlineThickness" -- Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:154:					mOutlineThickness = t;
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:166:					return mOutlineThickness;
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:203:				float32 mOutlineThickness = 0.f;
+
+$ git grep -n "GetOutlineThickness" -- Kernel Applications
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:165:				float32 GetOutlineThickness() const {
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Shapes/NkShape.h:66:				float32 GetOutlineThickness() const noexcept {
+
+$ git grep -n "SetOutlineThickness" -- Kernel Applications
+Applications/NkDemoCurseur/src/main.cpp:188:			r.SetOutlineThickness(i == zoneSurvolee ? 3.f : 1.f);
+Applications/NkDemoCurseur/src/main.cpp:204:			b.SetOutlineThickness(1.f);
+Applications/NkDemoDeltaSouris/src/main.cpp:344:			b.SetOutlineThickness(1.f);
+Kernel/Runtime/NKCanvas/USAGE.md:139:rect.SetOutlineThickness(2.f);
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.h:153:				void SetOutlineThickness(float32 t) {
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Shapes/NkRectangleShape.h:13://   r.SetOutlineThickness(2.f);
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Shapes/NkShape.cpp:102:			// avec 1 en dur. SetOutlineThickness(4.f) et SetOutlineThickness(0.1f)
+Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Shapes/NkShape.h:62:				void SetOutlineThickness(float32 t) noexcept {
+
+$ git grep -n -i "outline" -- Kernel/Runtime/NKCanvas/src/NKCanvas/Renderer/Resources/NkSprite.cpp
+
+(sortie vide : le code qui construit et dessine les glyphes de NkText ne mentionne jamais le contour)
+
+Bilan : écrit en NkSprite.h:154 (NkText::SetOutlineThickness). Seule lecture : le getter NkSprite.h:166, que personne n'appelle (l'autre GetOutlineThickness, NkShape.h:66, est celui des formes). Les SetOutlineThickness des démos portent sur des NkRectangleShape (r et b), pas sur des NkText.
